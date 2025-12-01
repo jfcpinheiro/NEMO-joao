@@ -1,3 +1,7 @@
+## Version 1.3.3
+
+1 - Minor fix in pyproject.toml
+
 ## Version 1.3.2
 
 1 - Updated Ensemble class giving option to generate spectra in terms of wavelength rather than energy.
