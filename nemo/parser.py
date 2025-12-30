@@ -685,3 +685,88 @@ def soc_t1(file, mqn, n_triplet, ind_s):
     indice = np.argsort(ind_s)
     socs = socs[indice, :]
     return socs * 0.12398 / 1000
+
+
+######################################################################################################
+
+
+######################################################################################################
+
+##EXTRACTS DERIVATIVE COUPLING FROM A Qchem6.2 LOG FILE###############################################
+def pega_DC_real(normal_modes, DC_log, state_1, state_2):
+    
+    num_atoms = np.shape(normal_modes)[0]
+    DC_real = np.zeros((num_atoms, 3))
+    n_miss=0
+    
+    start=False
+    fetch=False
+    with open(DC_log, 'r', encoding='utf-8') as file:
+        for line in file:
+            if 'between states ' +str(state_1) + ' and ' + str(state_2) in line:
+                start=True
+            elif start:
+                if 'with ETF' in line:
+                    fetch=True
+                elif fetch:
+                    line=line.split()
+                    try:
+                        atom_index = int(line[0]) - 1
+                        DC_real[atom_index, 0] = float(line[1])
+                        DC_real[atom_index, 1] = float(line[2])
+                        DC_real[atom_index, 2] = float(line[3])
+                    except (ValueError, IndexError):
+                        n_miss+=1
+            if n_miss == 3:
+                break
+    return DC_real
+
+######################################################################################################
+
+
+## Obtains the matrix A that transforms Cartesian coordinates to normal modes (Q = A * R)
+def transform_cartesian_to_normal_modes(normal_modes):
+    num_atoms = np.shape(normal_modes)[0]
+    freqs = np.shape(normal_modes)[2]
+    A = np.zeros((freqs, 3 * num_atoms)) # 3N-6 x 3N
+    for i in range(freqs):
+        for j in range(num_atoms):
+            A[i, 3 * j    ] = normal_modes[j, 0, i]
+            A[i, 3 * j + 1] = normal_modes[j, 1, i]
+            A[i, 3 * j + 2] = normal_modes[j, 2, i]
+    return A
+
+
+######################################################################################################
+
+##TRANSFORMS REAL COORDINATES TO NORMAL COORDINATES###################################################
+def transform_dR_to_dQ(A, normal_modes, DC_real):
+    """
+        If Q=AR, the derivatives will tranform as d/dQ = (AA_T)^-1 A d/dR.
+        
+    """
+    A = transform_cartesian_to_normal_modes(normal_modes)
+    # compute transpose of A
+    A_T = np.transpose(A)
+    # compute inverse of AA_T
+    AA_T_inv = np.linalg.inv(np.dot(A, A_T))
+    # compute d/dQ
+    DC_normal = np.dot(AA_T_inv, np.dot(A, DC_real.flatten()))
+    return DC_normal
+
+## Transforms d/dR (DC_real) to d/dQ (DC_normal) using Moore-Penrose pseudoinverse.################## 
+## Same procedure, but less lines of code. Copilot suggests it is more stable numerically.###########
+def transform_dR_to_dQ_Moore_Penrose(A, normal_modes, DC_real):
+    A = transform_cartesian_to_normal_modes(normal_modes)
+    # compute Moore-Penrose pseudoinverse of A
+    A_pseudo_inv = np.linalg.pinv(np.transpose(A))
+    # compute d/dQ
+    DC_normal = np.dot(A_pseudo_inv, DC_real.flatten())
+    return DC_normal
+
+######################################################################################################
+
+
+######################################################################################################
+
+
