@@ -227,7 +227,19 @@ def add_header(rem, num_ex, soc, static, refrac):
     header += (f"\n$solvent\n"
             f"Dielectric              {static}\n"
             f"OpticalDielectric       {refrac**2}\n"
-            f"$end\n\n")   
+            f"$end\n\n")
+
+    # checks if derivative coupling is to be computed
+    if "calc_nac" in rem:
+        num_dec="  "   
+        for i in range(num_ex + 1):
+            num_dec+=(f" {i}")
+        header += (f"$derivative_coupling\n"
+                   f"   0 is the reference state\n"
+                   f"{num_dec}\n"
+                   f"$end\n\n")
+
+
     #remove $end from rem
     rem = rem.replace("$end", "")
     header = header.replace("$rem", rem)
@@ -283,6 +295,7 @@ def setup_ensemble():
             "Ok, calculations will be suitable for all spectra and ISC rate estimates!\n"
         )
         header = add_header(rem, num_ex, 'true', static, refrac)
+    
     header += f"$molecule\n{charge_multiplicity}\n"
     num_geoms = int(input("How many geometries to be sampled?\n"))
     temperature = float(input("Temperature in Kelvin?\n"))

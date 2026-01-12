@@ -53,6 +53,8 @@ def interface():
     print(
         "\t9 - Perform tuning of long range corrected functional (Gaussian 09/16 only)"
     )
+    print("IC RATE:")
+    print("\t10 - Compute internal conversion rate")
     print('\n')
     nemo.tools.check_for_updates('nemophoto')
     operation = input()
@@ -138,6 +140,10 @@ def interface():
             gather_data(state, save=True)
     elif operation == "8":
         lx.tools.ld()
+
+    elif operation == "10":
+        print("option 10")
+
     elif operation == "9":
         lx.tools.omega_tuning()
     else:
