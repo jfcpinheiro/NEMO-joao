@@ -334,6 +334,72 @@ def gather_data(initial, save=True):
         data = np.hstack(
             (numbers, singlets, triplets, ss_s, ss_t, ground_pol[:, np.newaxis], oscs)
         )
+
+    # Check if derivative coupling calculation was performed
+    DC_computation, DC_states = nemo.parser.check_derivative_couplings(files[0])
+    if DC_computation:
+
+        ###### OBTAINS THE B PARAMETERS ########
+        formats_dc = {}
+        freq_log = nemo.tools.fetch_file("frequency", [".out", ".log"])
+        (
+            initial_state,
+            final_state,
+            geometry,
+            mode,
+            B
+        ) = nemo.parser.get_derivative_couplings(initial[1:], DC_states, files, freq_log)
+       
+        arquivo_dc =f"Derivative_Couplings_{initial.upper()}_.lx"
+        data_dc = pd.DataFrame()
+        data_dc["initial_state"] = np.array(initial_state).astype(str)
+        data_dc["final_state"] = np.array(final_state).astype(str)
+        data_dc["geometry"] = geometry
+        data_dc["mode"] = mode
+        data_dc["B"] = B
+
+        formats_dc["initial_state"] = "{:s}"
+        formats_dc["final_state"] = "{:s}"
+        formats_dc["geometry"] = "{:.0f}"
+        formats_dc["mode"] = "{:.0f}"
+        formats_dc["B"] = "{:.5e}" 
+        if save:
+            # Create a temporary copy of the DataFrame
+            temp_data_dc = data_dc.copy()
+            #Apply formats
+            for column, fmt in formats_dc.items():
+                if column in temp_data_dc.columns:
+                    temp_data_dc[column] = temp_data_dc[column].map(fmt.format)
+            temp_data_dc.to_csv(arquivo_dc, index=False)
+        
+        ###### OBTAINS THE V PARAMETERS ########
+        Mag_file = nemo.tools.fetch_file("Magnitudes", ['Magnitudes'])
+        (
+            geometry_V,
+            mode_V,
+            V
+        ) = nemo.parser.get_V(Mag_file)
+        
+        formats_V = {}
+        arquivo_V =f"V_{initial.upper()}_.lx"
+        data_V = pd.DataFrame()
+        data_V["geometry"] = geometry_V
+        data_V["mode"] = mode_V
+        data_V["V"] = V
+
+        formats_V["geometry"] = "{:.0f}"
+        formats_V["mode"] = "{:.0f}"
+        formats_V["V"] = "{:.5e}"
+        if save:
+            # Create a temporary copy of the DataFrame
+            temp_data_V = data_V.copy()
+            #Apply formats
+            for column, fmt in formats_V.items():
+                if column in temp_data_V.columns:
+                    temp_data_V[column] = temp_data_V[column].map(fmt.format)
+            temp_data_V.to_csv(arquivo_V, index=False)
+    ####################################################################
+
     arquivo = f"Ensemble_{initial.upper()}_.lx"
     data = pd.DataFrame(data, columns=header)
     # add 'ensemble', 'kbT', 'nr', 'eps' columns with constant values

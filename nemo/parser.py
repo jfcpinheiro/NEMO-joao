@@ -1,5 +1,7 @@
 import sys
+import pandas as pd
 import numpy as np
+import lx.parser
 
 ##SOME CONSTANTS##############################################
 EPSILON_0 = 8.854187817e-12  # F/m
@@ -10,6 +12,7 @@ LIGHT_SPEED = 299792458  # m/s
 E_CHARGE = 1.60217662e-19  # C
 BOLTZ_EV = 8.6173303e-5  # eV/K
 AMU = 1.660539040e-27  # kg
+BOHR = 5.2917721067e-11 # m
 ###############################################################
 
 
@@ -696,7 +699,7 @@ def soc_t1(file, mqn, n_triplet, ind_s):
 def pega_DC_real(normal_modes, DC_log, state_1, state_2):
     
     num_atoms = np.shape(normal_modes)[0]
-    DC_real = np.zeros((num_atoms, 3))
+    DC_real = np.zeros((num_atoms, 3)) + np.nan
     n_miss=0
     
     start=False
@@ -719,6 +722,8 @@ def pega_DC_real(normal_modes, DC_log, state_1, state_2):
                         n_miss+=1
             if n_miss == 3:
                 break
+    ######### Convert to SI units #########
+    DC_real *= BOHR
     return DC_real
 
 ######################################################################################################
@@ -740,7 +745,7 @@ def transform_cartesian_to_normal_modes(normal_modes):
 ######################################################################################################
 
 ##TRANSFORMS REAL COORDINATES TO NORMAL COORDINATES###################################################
-def transform_dR_to_dQ(A, normal_modes, DC_real):
+def transform_dR_to_dQ(normal_modes, DC_real):
     """
         If Q=AR, the derivatives will tranform as d/dQ = (AA_T)^-1 A d/dR.
         
@@ -754,14 +759,128 @@ def transform_dR_to_dQ(A, normal_modes, DC_real):
     DC_normal = np.dot(AA_T_inv, np.dot(A, DC_real.flatten()))
     return DC_normal
 
-## Transforms d/dR (DC_real) to d/dQ (DC_normal) using Moore-Penrose pseudoinverse.################## 
-## Same procedure, but less lines of code. Copilot suggests it is more stable numerically.###########
-def transform_dR_to_dQ_Moore_Penrose(A, normal_modes, DC_real):
-    A = transform_cartesian_to_normal_modes(normal_modes)
-    # compute Moore-Penrose pseudoinverse of A
-    A_pseudo_inv = np.linalg.pinv(np.transpose(A))
-    # compute d/dQ
-    DC_normal = np.dot(A_pseudo_inv, DC_real.flatten())
-    return DC_normal
-
 ######################################################################################################
+
+## DEFINES THE B PARAMETERS FOR THE IC RATE ##########################################################
+def get_derivative_couplings(state_i, states_f, files, freqlog):
+    # get modes and frequencies
+    Qchemfile=False
+    with open(freqlog, 'r', encoding='utf-8') as file:
+        for line in file:
+            if 'qchem' in line:
+                Qchemfile=True
+                break
+    try:
+        if Qchemfile:
+            print("Qchem frequency log detected.")
+            geom, _ = pega_geom(freqlog)
+            normal_modes = pega_modos(geom, freqlog)
+            freqs, masses = pega_freq(freqlog)
+        else:
+            geom, _ = lx.parser.pega_geom(freqlog)
+            normal_modes = lx.parser.pega_modos(geom, freqlog)
+            freqs, masses = lx.parser.pega_freq(freqlog)
+            print("Gaussian frequency log detected.")
+    except FileNotFoundError:
+        lx.parser.fatal_error("Compatible frequency log file not found! Goodbye!")
+
+    #compute B
+    initial_state = []
+    final_state = []
+    geometry = []
+    mode = []
+    B=[]
+
+    for state_f in states_f:
+
+        if int(state_i) == int(state_f):
+            continue
+        state_1 = str(state_i)
+        state_2 = str(state_f)
+        if int(state_f) < int(state_i):
+            state_1 = str(state_f)
+            state_2 = str(state_i)
+
+        for i, file in enumerate(files):
+            DC_real = pega_DC_real(
+                normal_modes,
+                "Geometries/"+str(file),
+                state_1,
+                state_2,
+            )
+            DC_normal = transform_dR_to_dQ(
+                normal_modes, DC_real
+            )
+            for k in range(len(freqs)):
+                initial_state.append(state_1)
+                final_state.append(state_2)
+                geometry.append(i)
+                mode.append(k)
+                B.append(
+                    (DC_normal[k]**2) * (HBAR_J**3) * (freqs[k]) / (2.0 * masses[k])
+                )
+
+    return (
+        initial_state,
+        final_state,
+        geometry,
+        mode,
+        B
+    )
+#########################################################################################
+
+##CHECKS IF DERIVATIVE COUPLING CALCULATION WAS PERFORMED##################################
+def check_derivative_couplings(file):
+    ##obtains the states Qchem used to compute the derivative couplings
+    module=False
+    comment=False
+    states=[]
+    DC_computation = False
+    with open("Geometries/" + file[:-3]+"com", "r", encoding="utf-8") as log_file:
+        for line in log_file:
+            if "derivative_coupling" in line.lower():
+                DC_computation = True
+                module=True
+                continue
+            if module and not comment:
+                comment=True
+                continue
+            if module and comment:
+                for state in line.split():
+                    states.append(int(state))
+                break
+    return DC_computation, states
+#########################################################################################
+
+##COMPUTES THE V PARAMETERS #####
+def get_V(mag_file):
+
+    temp = float(mag_file.split("_")[1].strip("K"))
+
+    data_V = pd.read_csv(mag_file)
+    freq_V = data_V.filter(regex="freq").dropna().to_numpy().flatten()
+    masses_m=data_V.filter(regex="mass").dropna().to_numpy().flatten()
+    
+    amplitudes=data_V.filter(regex="mode_").dropna().to_numpy()
+    amplitudes *= 1e-10 # convert to meters from angstroms
+
+
+    geometry = []
+    mode = []
+    V = []
+
+    for geom in range(len(amplitudes)):
+        for m in range(len(amplitudes[0])):
+            geometry.append(geom)
+            mode.append(m)
+            V.append(
+                1.0/4.0 * (1.0/np.tanh(HBAR_EV * freq_V[m] / (2.0 * BOLTZ_EV * temp)))+
+                (masses_m[m] * (freq_V[m]) * (amplitudes[geom][m]**2)) / (2.0 * HBAR_J)
+                - 1.0/2.0
+            )
+
+    return(
+        geometry,
+        mode,
+        V
+    )
