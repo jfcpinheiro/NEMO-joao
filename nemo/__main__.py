@@ -142,7 +142,16 @@ def interface():
         lx.tools.ld()
 
     elif operation == "10":
-        print("option 10")
+        initial = input(
+            ("What is the initial state (S0, S1, T1, S2 ...)? "
+             "Accepts comma separated values Ex: T1,T2\n")
+        )
+        final = input(
+            ("What is the final state (S0, S1, T1, S2 ...)? "
+             "Accepts comma separated values Ex: T1,T2\n")
+        )
+        res = nemo.analysis.IC_rate(initial, final)
+        print(f"The internal conversion rate from {initial} to {final} is {res:.3e} s^-1")
 
     elif operation == "9":
         lx.tools.omega_tuning()

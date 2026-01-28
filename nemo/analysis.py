@@ -336,69 +336,9 @@ def gather_data(initial, save=True):
         )
 
     # Check if derivative coupling calculation was performed
-    DC_computation, DC_states = nemo.parser.check_derivative_couplings(files[0])
+    DC_computation, _ = nemo.parser.check_derivative_couplings(files[0])
     if DC_computation:
-
-        ###### OBTAINS THE B PARAMETERS ########
-        formats_dc = {}
-        freq_log = nemo.tools.fetch_file("frequency", [".out", ".log"])
-        (
-            initial_state,
-            final_state,
-            geometry,
-            mode,
-            B
-        ) = nemo.parser.get_derivative_couplings(initial[1:], DC_states, files, freq_log)
-       
-        arquivo_dc =f"Derivative_Couplings_{initial.upper()}_.lx"
-        data_dc = pd.DataFrame()
-        data_dc["initial_state"] = np.array(initial_state).astype(str)
-        data_dc["final_state"] = np.array(final_state).astype(str)
-        data_dc["geometry"] = geometry
-        data_dc["mode"] = mode
-        data_dc["B"] = B
-
-        formats_dc["initial_state"] = "{:s}"
-        formats_dc["final_state"] = "{:s}"
-        formats_dc["geometry"] = "{:.0f}"
-        formats_dc["mode"] = "{:.0f}"
-        formats_dc["B"] = "{:.5e}" 
-        if save:
-            # Create a temporary copy of the DataFrame
-            temp_data_dc = data_dc.copy()
-            #Apply formats
-            for column, fmt in formats_dc.items():
-                if column in temp_data_dc.columns:
-                    temp_data_dc[column] = temp_data_dc[column].map(fmt.format)
-            temp_data_dc.to_csv(arquivo_dc, index=False)
-        
-        ###### OBTAINS THE V PARAMETERS ########
-        Mag_file = nemo.tools.fetch_file("Magnitudes", ['Magnitudes'])
-        (
-            geometry_V,
-            mode_V,
-            V
-        ) = nemo.parser.get_V(Mag_file)
-        
-        formats_V = {}
-        arquivo_V =f"V_{initial.upper()}_.lx"
-        data_V = pd.DataFrame()
-        data_V["geometry"] = geometry_V
-        data_V["mode"] = mode_V
-        data_V["V"] = V
-
-        formats_V["geometry"] = "{:.0f}"
-        formats_V["mode"] = "{:.0f}"
-        formats_V["V"] = "{:.5e}"
-        if save:
-            # Create a temporary copy of the DataFrame
-            temp_data_V = data_V.copy()
-            #Apply formats
-            for column, fmt in formats_V.items():
-                if column in temp_data_V.columns:
-                    temp_data_V[column] = temp_data_V[column].map(fmt.format)
-            temp_data_V.to_csv(arquivo_V, index=False)
-    ####################################################################
+        gather_data_derivative_couplings(initial, save)
 
     arquivo = f"Ensemble_{initial.upper()}_.lx"
     data = pd.DataFrame(data, columns=header)
@@ -427,6 +367,75 @@ def gather_data(initial, save=True):
 
 
 #######################################################################################
+
+
+def gather_data_derivative_couplings(initial, save=True):
+    files = [i for i in os.listdir("Geometries") if ".log" in i]
+    files = check_normal(files)
+    files = sorted(files, key=lambda pair: float(pair.split("-")[1]))
+    _, DC_states = nemo.parser.check_derivative_couplings(files[0])
+    ###### OBTAINS THE B PARAMETERS ########
+    formats_dc = {}
+    freq_log = nemo.tools.fetch_file("frequency", [".out", ".log"])
+    (
+        initial_state,
+        final_state,
+        geometry,
+        mode,
+        B
+    ) = nemo.parser.get_derivative_couplings(initial[1:], DC_states, files, freq_log)
+    
+    arquivo_dc =f"Derivative_Couplings_{initial.upper()}_.lx"
+    data_dc = pd.DataFrame()
+    data_dc["initial_state"] = np.array(initial_state).astype(str)
+    data_dc["final_state"] = np.array(final_state).astype(str)
+    data_dc["geometry"] = geometry
+    data_dc["mode"] = mode
+    data_dc["B"] = B
+
+    formats_dc["initial_state"] = "{:s}"
+    formats_dc["final_state"] = "{:s}"
+    formats_dc["geometry"] = "{:.0f}"
+    formats_dc["mode"] = "{:.0f}"
+    formats_dc["B"] = "{:.5e}" 
+    if save:
+        # Create a temporary copy of the DataFrame
+        temp_data_dc = data_dc.copy()
+        #Apply formats
+        for column, fmt in formats_dc.items():
+            if column in temp_data_dc.columns:
+                temp_data_dc[column] = temp_data_dc[column].map(fmt.format)
+        temp_data_dc.to_csv(arquivo_dc, index=False)
+    
+    ###### OBTAINS THE V PARAMETERS ########
+    Mag_file = nemo.tools.fetch_file("Magnitudes", ['Magnitudes'])
+    (
+        geometry_V,
+        mode_V,
+        V
+    ) = nemo.parser.get_V(Mag_file)
+    
+    formats_V = {}
+    arquivo_V =f"V_{initial.upper()}_.lx"
+    data_V = pd.DataFrame()
+    data_V["geometry"] = geometry_V
+    data_V["mode"] = mode_V
+    data_V["V"] = V
+
+    formats_V["geometry"] = "{:.0f}"
+    formats_V["mode"] = "{:.0f}"
+    formats_V["V"] = "{:.5e}"
+    if save:
+        # Create a temporary copy of the DataFrame
+        temp_data_V = data_V.copy()
+        #Apply formats
+        for column, fmt in formats_V.items():
+            if column in temp_data_V.columns:
+                temp_data_V[column] = temp_data_V[column].map(fmt.format)
+        temp_data_V.to_csv(arquivo_V, index=False)
+    return data_dc, data_V
+#######################################################################################
+
 
 
 ###PRINTS RATES AND EMISSION SPECTRUM##################################################
@@ -770,6 +779,61 @@ def rates(initial, dielec, data=None, ensemble_average=False, detailed=False):
 
 #########################################################################################
 
+def IC_rate(initial, final, data=None):
+    if data is None:
+        data = gather_data(initial, save=True)
+        data_dc, data_V = gather_data_derivative_couplings(initial, save=False)
+        kbt = nemo.tools.detect_sigma() # in eV
+        lambda_e = 0.0
+    
+    initial = initial.lower()
+    final = final.lower()
+
+    data = fix_absent_soc(data) #!!!!!!!!check!!!!!!!!
+    
+
+    mag_file = nemo.tools.fetch_file("Magnitudes", ['Magnitudes'])
+    data_f = pd.read_csv(mag_file)
+    freq_V = data_f.filter(regex="freq").dropna().to_numpy().flatten()
+    masses_m=data_f.filter(regex="mass").dropna().to_numpy().flatten()
+
+    rate = 0.0
+
+    N_geom = data["geometry"].size
+    N_modes = data_dc["mode"].unique().size
+    for geom in range(N_geom):
+        print("Computing IC rate for geometry ", geom + 1)
+        for mode in range(N_modes):
+            B_param = data_dc.loc[
+                (  ((data_dc["initial_state"] == initial[1:]) & (data_dc["final_state"] == final[1:])) |
+                ((data_dc["initial_state"] == final[1:]) & (data_dc["final_state"] == initial[1:])) )
+                & (data_dc["geometry"] == geom + 1)
+                & (data_dc["mode"] == mode + 1),
+                "B",
+            ].values[0]
+
+            V_param = data_V.loc[
+                (data_V["geometry"] == geom + 1)
+                & (data_V["mode"] == mode + 1),
+                "V",
+            ].values[0]
+
+            E = data.loc[
+                data["geometry"] == geom + 1, f"e_{initial}"
+            ].values[0]  # in eV
+
+            freq = freq_V[mode] # angular frequency in rad/s
+
+            rate += B_param *    V_param    * nemo.tools.gauss(0.0, E - HBAR_EV * freq + lambda_e, np.sqrt(2*lambda_e*kbt + kbt**2))
+            rate += B_param * (V_param + 1) * nemo.tools.gauss(0.0, E + HBAR_EV * freq + lambda_e, np.sqrt(2*lambda_e*kbt + kbt**2))
+
+    rate /= E_CHARGE
+    rate *= (2 * np.pi) / HBAR_J
+    rate /= N_geom
+
+    return rate
+
+#########################################################################################
 
 def save_absorption_spectrum(
     initial, eps, refractive_index, x_axis, mean_y, sigma, labels

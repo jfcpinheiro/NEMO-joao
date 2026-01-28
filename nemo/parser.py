@@ -723,7 +723,7 @@ def pega_DC_real(normal_modes, DC_log, state_1, state_2):
             if n_miss == 3:
                 break
     ######### Convert to SI units #########
-    DC_real *= BOHR
+    DC_real /= BOHR
     return DC_real
 
 ######################################################################################################
@@ -814,8 +814,8 @@ def get_derivative_couplings(state_i, states_f, files, freqlog):
             for k in range(len(freqs)):
                 initial_state.append(state_1)
                 final_state.append(state_2)
-                geometry.append(i)
-                mode.append(k)
+                geometry.append(i+1)
+                mode.append(k+1)
                 B.append(
                     (DC_normal[k]**2) * (HBAR_J**3) * (freqs[k]) / (2.0 * masses[k])
                 )
@@ -871,8 +871,8 @@ def get_V(mag_file):
 
     for geom in range(len(amplitudes)):
         for m in range(len(amplitudes[0])):
-            geometry.append(geom)
-            mode.append(m)
+            geometry.append(geom+1)
+            mode.append(m+1)
             V.append(
                 1.0/4.0 * (1.0/np.tanh(HBAR_EV * freq_V[m] / (2.0 * BOLTZ_EV * temp)))+
                 (masses_m[m] * (freq_V[m]) * (amplitudes[geom][m]**2)) / (2.0 * HBAR_J)
