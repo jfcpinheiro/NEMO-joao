@@ -801,31 +801,39 @@ def IC_rate(initial, final, data=None):
 
     N_geom = data["geometry"].size
     N_modes = data_dc["mode"].unique().size
-    for geom in range(N_geom):
-        print("Computing IC rate for geometry ", geom + 1)
-        for mode in range(N_modes):
-            B_param = data_dc.loc[
-                (  ((data_dc["initial_state"] == initial[1:]) & (data_dc["final_state"] == final[1:])) |
-                ((data_dc["initial_state"] == final[1:]) & (data_dc["final_state"] == initial[1:])) )
-                & (data_dc["geometry"] == geom + 1)
-                & (data_dc["mode"] == mode + 1),
-                "B",
-            ].values[0]
 
-            V_param = data_V.loc[
-                (data_V["geometry"] == geom + 1)
-                & (data_V["mode"] == mode + 1),
-                "V",
-            ].values[0]
+    with open ('IC_debug.txt','w') as f:
+        f.write(f"#Geometry IC rates for the {initial.upper()}->{final.upper()} transition\n")
+        for geom in range(N_geom):
+            rate_geom = 0.0
+            print("Computing IC rate for geometry ", geom + 1)
+            for mode in range(N_modes):
+                B_param = data_dc.loc[
+                    (  ((data_dc["initial_state"] == initial[1:]) & (data_dc["final_state"] == final[1:])) |
+                    ((data_dc["initial_state"] == final[1:]) & (data_dc["final_state"] == initial[1:])) )
+                    & (data_dc["geometry"] == geom + 1)
+                    & (data_dc["mode"] == mode + 1),
+                    "B",
+                ].values[0]
 
-            E = data.loc[
-                data["geometry"] == geom + 1, f"e_{initial}"
-            ].values[0]  # in eV
+                V_param = data_V.loc[
+                    (data_V["geometry"] == geom + 1)
+                    & (data_V["mode"] == mode + 1),
+                    "V",
+                ].values[0]
 
-            freq = freq_V[mode] # angular frequency in rad/s
+                E = data.loc[
+                    data["geometry"] == geom + 1, f"e_{initial}"
+                ].values[0]  # in eV
 
-            rate += B_param *    V_param    * nemo.tools.gauss(0.0, E - HBAR_EV * freq + lambda_e, np.sqrt(2*lambda_e*kbt + kbt**2))
-            rate += B_param * (V_param + 1) * nemo.tools.gauss(0.0, E + HBAR_EV * freq + lambda_e, np.sqrt(2*lambda_e*kbt + kbt**2))
+                freq = freq_V[mode] # angular frequency in rad/s
+
+                rate_geom += nemo.tools.gauss(0.0, E - HBAR_EV * freq + lambda_e, np.sqrt(2*lambda_e*kbt + kbt**2))
+                rate_geom += nemo.tools.gauss(0.0, E + HBAR_EV * freq + lambda_e, np.sqrt(2*lambda_e*kbt + kbt**2))
+                rate += B_param *    V_param    * nemo.tools.gauss(0.0, E - HBAR_EV * freq + lambda_e, np.sqrt(2*lambda_e*kbt + kbt**2))
+                rate += B_param * (V_param + 1) * nemo.tools.gauss(0.0, E + HBAR_EV * freq + lambda_e, np.sqrt(2*lambda_e*kbt + kbt**2))
+            rate_geom *= (2 * np.pi) / HBAR_J / E_CHARGE
+            f.write(f"{geom + 1} {E:.5f} {HBAR_EV * freq:.5f} {rate_geom:.5e}\n")
 
     rate /= E_CHARGE
     rate *= (2 * np.pi) / HBAR_J
