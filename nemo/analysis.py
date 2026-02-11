@@ -789,8 +789,7 @@ def IC_rate(initial, final, data=None):
     initial = initial.lower()
     final = final.lower()
 
-    data = fix_absent_soc(data) #!!!!!!!!check!!!!!!!!
-    
+    data = fix_absent_soc(data) 
 
     mag_file = nemo.tools.fetch_file("Magnitudes", ['Magnitudes'])
     data_f = pd.read_csv(mag_file)
