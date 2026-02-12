@@ -152,6 +152,10 @@ def interface():
         )
         res = nemo.analysis.IC_rate(initial, final)
         print(f"The internal conversion rate from {initial} to {final} is {res:.3e} s^-1")
+        # save to file
+        with open("IC_rate.txt", "w") as f:
+            f.write(f"Internal conversion rate from {initial} to {final}: {res:.3e} s^-1\n")
+
 
     elif operation == "9":
         lx.tools.omega_tuning()
