@@ -853,8 +853,8 @@ def check_derivative_couplings(file):
 #########################################################################################
 
 ##COMPUTES THE V PARAMETERS #####
-def get_V(mag_file):
-
+def get_V(mag_file, V_option='quantum'):
+    
     temp = float(mag_file.split("_")[1].strip("K"))
 
     data_V = pd.read_csv(mag_file)
@@ -868,25 +868,64 @@ def get_V(mag_file):
     geometry = []
     mode = []
     V = []
+    
+    #--------------------------------------------#
+    #Semi-Classical expression
+    if V_option == "SemiClass":
+        for geom in range(len(amplitudes)):
+            for m in range(len(amplitudes[0])):
+                geometry.append(geom+1)
+                mode.append(m+1)
+                V.append(
+                 1.0/4.0 * (1.0/np.tanh(HBAR_EV * freq_V[m] / (2.0 * BOLTZ_EV * temp)))+
+                 (masses_m[m] * (freq_V[m]) * (amplitudes[geom][m]**2)) / (2.0 * HBAR_J)
+                 - 1.0/2.0
+                )
+        return(
+            geometry,
+            mode,
+            V
+        )        
 
-    for geom in range(len(amplitudes)):
-        for m in range(len(amplitudes[0])):
-            geometry.append(geom+1)
-            mode.append(m+1)
-
-            term =(
+    #--------------------------------------------#
+    #Positive semi-classical expression
+    if V_option == "POSITIVESemiClass":
+       for geom in range(len(amplitudes)):
+           for m in range(len(amplitudes[0])):
+               geometry.append(geom+1)
+               mode.append(m+1)
+              
+               term =(
                 1.0/4.0 * (1.0/np.tanh(HBAR_EV * freq_V[m] / (2.0 * BOLTZ_EV * temp)))+
                 (masses_m[m] * (freq_V[m]) * (amplitudes[geom][m]**2)) / (2.0 * HBAR_J)
                 - 1.0/2.0
-            )
+               )
 
-            if term < 0.0:
-                V.append(0.0)
-            else:
-                V.append(term)
-
+               if term < 0.0:
+                   V.append(0.0)
+               else:
+                   V.append(term)
+        return(
+            geometry,
+            mode,
+            V
+        )
+    
+    #--------------------------------------------#
+    # If no valid option was chosen, the calculation performed is the Quantum statistical
+    if V_option != "quantum":
+        print("Performing the quantum statiscal calculation of the V paramenter.")
+      
+    #Quantum statistical expression  
+    for geom in range(len(amplitudes)):
+            for m in range(len(amplitudes[0])):
+                geometry.append(geom+1)
+                mode.append(m+1)    
+                V.append(
+                1.0 / (np.exp(HBAR_EV * freq_V[m] / (BOLTZ_EV * temp)) - 1.0)
     return(
         geometry,
         mode,
         V
     )
+                  
