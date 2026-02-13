@@ -890,21 +890,21 @@ def get_V(mag_file, V_option='quantum'):
     #--------------------------------------------#
     #Positive semi-classical expression
     if V_option == "POSITIVESemiClass":
-       for geom in range(len(amplitudes)):
-           for m in range(len(amplitudes[0])):
-               geometry.append(geom+1)
-               mode.append(m+1)
+        for geom in range(len(amplitudes)):
+            for m in range(len(amplitudes[0])):
+                geometry.append(geom+1)
+                mode.append(m+1)
               
-               term =(
-                1.0/4.0 * (1.0/np.tanh(HBAR_EV * freq_V[m] / (2.0 * BOLTZ_EV * temp)))+
-                (masses_m[m] * (freq_V[m]) * (amplitudes[geom][m]**2)) / (2.0 * HBAR_J)
-                - 1.0/2.0
-               )
+                term =(
+                 1.0/4.0 * (1.0/np.tanh(HBAR_EV * freq_V[m] / (2.0 * BOLTZ_EV * temp)))+
+                 (masses_m[m] * (freq_V[m]) * (amplitudes[geom][m]**2)) / (2.0 * HBAR_J)
+                 - 1.0/2.0
+                )
 
-               if term < 0.0:
-                   V.append(0.0)
-               else:
-                   V.append(term)
+                if term < 0.0:
+                    V.append(0.0)
+                else:
+                    V.append(term)
         return(
             geometry,
             mode,
@@ -918,11 +918,12 @@ def get_V(mag_file, V_option='quantum'):
       
     #Quantum statistical expression  
     for geom in range(len(amplitudes)):
-            for m in range(len(amplitudes[0])):
-                geometry.append(geom+1)
-                mode.append(m+1)    
-                V.append(
-                1.0 / (np.exp(HBAR_EV * freq_V[m] / (BOLTZ_EV * temp)) - 1.0)
+        for m in range(len(amplitudes[0])):
+            geometry.append(geom+1)
+            mode.append(m+1)    
+            V.append(
+            1.0 / (np.exp(HBAR_EV * freq_V[m] / (BOLTZ_EV * temp)) - 1.0)
+            )
     return(
         geometry,
         mode,
