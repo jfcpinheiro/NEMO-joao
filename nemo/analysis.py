@@ -7,6 +7,7 @@ import pandas as pd
 import nemo.tools
 import nemo.parser
 import nemo.eom
+from itertools import combinations
 
 # pylint: disable=unbalanced-tuple-unpacking
 
@@ -336,9 +337,13 @@ def gather_data(initial, save=True):
         )
 
     # Check if derivative coupling calculation was performed
-    DC_computation, _ = nemo.parser.check_derivative_couplings(files[0])
+    DC_computation, states = nemo.parser.check_derivative_couplings(files[0])
     if DC_computation:
         gather_data_derivative_couplings(initial, save)
+        header.extend([f"IC_{i}_{j}" for i, j in combinations(states, 2)])
+        any({formats.update({f"IC_{i}_{j}": "{:.4f}"}) for i, j in combinations(states, 2)})
+        for i, j in combinations(states, 2):
+            data=np.hstack((data, np.zeros((data.shape[0],1))))
 
     arquivo = f"Ensemble_{initial.upper()}_.lx"
     data = pd.DataFrame(data, columns=header)
@@ -789,54 +794,52 @@ def IC_rate(initial, final, data=None):
     initial = initial.lower()
     final = final.lower()
 
+    if int(initial[1]) < int(final[1]):
+        lower=int(initial[1])
+        higher=int(final[1])
+    else:
+        higher=int(initial[1])
+        lower=int(final[1])
+
     data = fix_absent_soc(data) 
+    N_geom = data["geometry"].size
+    N_modes = data_dc["mode"].unique().size
 
     mag_file = nemo.tools.fetch_file("Magnitudes", ['Magnitudes'])
     data_f = pd.read_csv(mag_file)
     freq_V = data_f.filter(regex="freq").dropna().to_numpy().flatten()
-    masses_m=data_f.filter(regex="mass").dropna().to_numpy().flatten()
 
-    rate = 0.0
+    # Defines the B and V arrays
+    data_dc[['initial_state', 'final_state']] = data_dc[['initial_state', 'final_state']].astype(int)
+    shape=(int(data_dc["initial_state"].max())+1, 
+           int(data_dc["final_state"].max())+1,
+           int(data_dc["geometry"].max()),
+           int(data_dc["mode"].max())
+           )
+    B_matrix=np.zeros(shape)
+    B_matrix[data_dc["initial_state"], data_dc["final_state"], data_dc["geometry"]-1, data_dc["mode"]-1] = data_dc["B"]
+    B=B_matrix[lower][higher]
 
-    N_geom = data["geometry"].size
-    N_modes = data_dc["mode"].unique().size
+    shape=(int(data_V["geometry"].max()),
+           int(data_V["mode"].max())
+           )
+    V=np.zeros(shape)
+    V[data_V["geometry"]-1, data_V["mode"]-1] = data_V["V"]
 
-    with open ('IC_debug.txt','w') as f:
-        f.write(f"#Geometry IC rates for the {initial.upper()}->{final.upper()} transition\n")
-        for geom in range(N_geom):
-            rate_geom = 0.0
-            print("Computing IC rate for geometry ", geom + 1)
-            for mode in range(N_modes):
-                B_param = data_dc.loc[
-                    (  ((data_dc["initial_state"] == initial[1:]) & (data_dc["final_state"] == final[1:])) |
-                    ((data_dc["initial_state"] == final[1:]) & (data_dc["final_state"] == initial[1:])) )
-                    & (data_dc["geometry"] == geom + 1)
-                    & (data_dc["mode"] == mode + 1),
-                    "B",
-                ].values[0]
+    
+    E_col = fetch(data, [f"^e_{initial[0]}"]) #eV
 
-                V_param = data_V.loc[
-                    (data_V["geometry"] == geom + 1)
-                    & (data_V["mode"] == mode + 1),
-                    "V",
-                ].values[0]
+    #E_col = energies[:,np.newaxis]  #eV
+    freq_row = freq_V[np.newaxis,:] #rad/s
+    gauss1=nemo.tools.gauss(0.0, E_col - HBAR_EV*freq_row + lambda_e, np.sqrt(2*lambda_e*kbt + kbt**2)) #1/eV
+    gauss2=nemo.tools.gauss(0.0, E_col + HBAR_EV*freq_row + lambda_e, np.sqrt(2*lambda_e*kbt + kbt**2)) #1/eV
 
-                E = data.loc[
-                    data["geometry"] == geom + 1, f"e_{initial}"
-                ].values[0]  # in eV
-
-                freq = freq_V[mode] # angular frequency in rad/s
-
-                rate_geom += nemo.tools.gauss(0.0, E - HBAR_EV * freq + lambda_e, np.sqrt(2*lambda_e*kbt + kbt**2))
-                rate_geom += nemo.tools.gauss(0.0, E + HBAR_EV * freq + lambda_e, np.sqrt(2*lambda_e*kbt + kbt**2))
-                rate += B_param *    V_param    * nemo.tools.gauss(0.0, E - HBAR_EV * freq + lambda_e, np.sqrt(2*lambda_e*kbt + kbt**2))
-                rate += B_param * (V_param + 1) * nemo.tools.gauss(0.0, E + HBAR_EV * freq + lambda_e, np.sqrt(2*lambda_e*kbt + kbt**2))
-            rate_geom *= (2 * np.pi) / HBAR_J / E_CHARGE
-            f.write(f"{geom + 1} {E:.5f} {HBAR_EV * freq:.5f} {rate_geom:.5e}\n")
-
-    rate /= E_CHARGE
+    term1 = B * V * gauss1 / E_CHARGE # S.I.
+    term2 = B * (V + 1.0) * gauss2 / E_CHARGE # S.I.
+    
+    rate  = np.sum(term1 + term2)
     rate *= (2 * np.pi) / HBAR_J
-    rate /= N_geom
+    rate /= N_geom  #s^-1
 
     return rate
 
