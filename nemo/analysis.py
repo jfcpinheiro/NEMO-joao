@@ -339,11 +339,13 @@ def gather_data(initial, save=True):
     # Check if derivative coupling calculation was performed
     DC_computation, states = nemo.parser.check_derivative_couplings(files[0])
     if DC_computation:
-        gather_data_derivative_couplings(initial, save)
-        header.extend([f"IC_{i}_{j}" for i, j in combinations(states, 2)])
-        any({formats.update({f"IC_{i}_{j}": "{:.4f}"}) for i, j in combinations(states, 2)})
+        _, _, H = gather_data_derivative_couplings(initial, pd.DataFrame(data, columns=header), save)
+        header.extend([f"IC_{i}_{j}(eV)" for i, j in combinations(states, 2)])
+        any({formats.update({f"IC_{i}_{j}(eV)": "{:.5e}"}) for i, j in combinations(states, 2)})
         for i, j in combinations(states, 2):
-            data=np.hstack((data, np.zeros((data.shape[0],1))))
+            data=np.hstack((data, H))
+
+
 
     arquivo = f"Ensemble_{initial.upper()}_.lx"
     data = pd.DataFrame(data, columns=header)
@@ -374,7 +376,7 @@ def gather_data(initial, save=True):
 #######################################################################################
 
 
-def gather_data_derivative_couplings(initial, save=True):
+def gather_data_derivative_couplings(initial, data=None, save=True):
     files = [i for i in os.listdir("Geometries") if ".log" in i]
     files = check_normal(files)
     files = sorted(files, key=lambda pair: float(pair.split("-")[1]))
@@ -438,7 +440,61 @@ def gather_data_derivative_couplings(initial, save=True):
             if column in temp_data_V.columns:
                 temp_data_V[column] = temp_data_V[column].map(fmt.format)
         temp_data_V.to_csv(arquivo_V, index=False)
-    return data_dc, data_V
+
+    #------------------------------------#
+    # Computes the H parameters
+    H = 0.0
+    if data is not None:   
+        V = nemo.tools.V_to_vec(data_V)
+
+        # ----- Freq   
+        mag_file = nemo.tools.fetch_file("Magnitudes", ['Magnitudes'])
+        data_f = pd.read_csv(mag_file)
+        freq_V = data_f.filter(regex="freq").dropna().to_numpy().flatten()
+        freq_row = freq_V[np.newaxis,:] #rad/s
+
+        S =nemo.tools.detect_sigma() #eV
+
+        exp_ext = np.exp(-(HBAR_EV * freq_row)**2/(2.0*S**2))
+        
+        i=0
+        for final in DC_states:
+            if final == int(initial[1]):
+                continue
+            if int(initial[1]) < final:
+                lower=int(initial[1])
+                higher=final
+            else:
+                higher=int(initial[1])
+                lower=final
+            
+            # ----- Get the transition energy for the ith transition
+            E_col = fetch(data, [f"^e_{initial.lower()[0]}"])[:,i] # eV
+            E_col = E_col[:,np.newaxis]
+            i+=1
+
+            argument = (E_col * HBAR_EV * freq_row)/(S**2)
+            exp_pos= np.nan_to_num(np.exp(( argument)), nan=0.0, posinf=0.0, neginf=0.0)    
+            exp_neg= np.nan_to_num(np.exp((-argument)), nan=0.0, posinf=0.0, neginf=0.0)
+            #print(exp_pos)
+
+
+            # ----_ Get the corresponding coupling for the ith transition
+            B = nemo.tools.B_to_vec(data_dc, lower, higher)
+            
+            # ----- Calculate H
+            H = B * exp_ext * (V * exp_pos + (V + 1) * exp_neg)
+            #np.savetxt("debug.csv", H, delimiter=",", fmt='%10.5f') #
+
+            # ----- sum on normal modes
+            H=np.sum(H, axis=1)[:,np.newaxis]
+            
+            # ----- Add H for this transition pair
+            try:
+                total_H = np.hstack((total_H, H))
+            except NameError:
+                total_H = H
+    return data_dc, data_V, total_H * E_CHARGE **2 # eV to J
 #######################################################################################
 
 
@@ -787,7 +843,7 @@ def rates(initial, dielec, data=None, ensemble_average=False, detailed=False):
 def IC_rate(initial, final, data=None):
     if data is None:
         data = gather_data(initial, save=True)
-        data_dc, data_V = gather_data_derivative_couplings(initial, save=False)
+        data_dc, data_V, _ = gather_data_derivative_couplings(initial, save=False)
         kbt = nemo.tools.detect_sigma() # in eV
         lambda_e = 0.0
     
@@ -810,22 +866,9 @@ def IC_rate(initial, final, data=None):
     freq_V = data_f.filter(regex="freq").dropna().to_numpy().flatten()
 
     # Defines the B and V arrays
-    data_dc[['initial_state', 'final_state']] = data_dc[['initial_state', 'final_state']].astype(int)
-    shape=(int(data_dc["initial_state"].max())+1, 
-           int(data_dc["final_state"].max())+1,
-           int(data_dc["geometry"].max()),
-           int(data_dc["mode"].max())
-           )
-    B_matrix=np.zeros(shape)
-    B_matrix[data_dc["initial_state"], data_dc["final_state"], data_dc["geometry"]-1, data_dc["mode"]-1] = data_dc["B"]
-    B=B_matrix[lower][higher]
+    B = nemo.tools.B_to_vec(data_dc, lower, higher)
 
-    shape=(int(data_V["geometry"].max()),
-           int(data_V["mode"].max())
-           )
-    V=np.zeros(shape)
-    V[data_V["geometry"]-1, data_V["mode"]-1] = data_V["V"]
-
+    V = nemo.tools.V_to_vec(data_V)
     
     E_col = fetch(data, [f"^e_{initial[0]}"]) #eV
 
