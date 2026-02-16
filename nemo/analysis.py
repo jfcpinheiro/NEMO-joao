@@ -455,7 +455,6 @@ def gather_data_derivative_couplings(initial, data=None, save=True):
 
         S =nemo.tools.detect_sigma() #eV
 
-        exp_ext = np.exp(-(HBAR_EV * freq_row)**2/(2.0*S**2))
         
         i=0
         for final in DC_states:
@@ -473,17 +472,24 @@ def gather_data_derivative_couplings(initial, data=None, save=True):
             E_col = E_col[:,np.newaxis]
             i+=1
 
-            argument = (E_col * HBAR_EV * freq_row)/(S**2)
-            exp_pos= np.nan_to_num(np.exp(( argument)), nan=0.0, posinf=0.0, neginf=0.0)    
-            exp_neg= np.nan_to_num(np.exp((-argument)), nan=0.0, posinf=0.0, neginf=0.0)
+            argument_pos =  (E_col * HBAR_EV * freq_row)/(S**2)-(HBAR_EV * freq_row)**2/(2.0*S**2)
+            argument_neg = -(E_col * HBAR_EV * freq_row)/(S**2)-(HBAR_EV * freq_row)**2/(2.0*S**2)
+            # print the numpy array argument to a file
+            np.savetxt("debug_argument_pos.csv", argument_pos, delimiter=",", fmt='%10.5f')
+            np.savetxt("debug_argument_neg.csv", argument_neg, delimiter=",", fmt='%10.5f')
+            print(argument_pos)
+            exp_pos= np.exp((argument_pos))    
+            exp_neg= np.exp((argument_neg))
+            np.savetxt("debug_exp_pos.csv", exp_pos, delimiter=",", fmt='%10.5f')
+            np.savetxt("debug_exp_neg.csv", exp_neg, delimiter=",", fmt='%10.5f')
             #print(exp_pos)
 
 
             # ----_ Get the corresponding coupling for the ith transition
-            B = nemo.tools.B_to_vec(data_dc, lower, higher)
+            B = nemo.tools.B_to_vec(data_dc, lower, higher) # J^2
             
             # ----- Calculate H
-            H = B * exp_ext * (V * exp_pos + (V + 1) * exp_neg)
+            H = np.nan_to_num(B * (V * exp_pos + (V + 1) * exp_neg), nan=0.0)
             #np.savetxt("debug.csv", H, delimiter=",", fmt='%10.5f') #
 
             # ----- sum on normal modes
@@ -494,7 +500,7 @@ def gather_data_derivative_couplings(initial, data=None, save=True):
                 total_H = np.hstack((total_H, H))
             except NameError:
                 total_H = H
-    return data_dc, data_V, total_H * E_CHARGE **2 # eV to J
+    return data_dc, data_V, total_H / (E_CHARGE**2) # J**2 to eV**2
 #######################################################################################
 
 
@@ -843,7 +849,7 @@ def rates(initial, dielec, data=None, ensemble_average=False, detailed=False):
 def IC_rate(initial, final, data=None):
     if data is None:
         data = gather_data(initial, save=True)
-        data_dc, data_V, _ = gather_data_derivative_couplings(initial, save=False)
+        data_dc, data_V, H = gather_data_derivative_couplings(initial, data, save=False)
         kbt = nemo.tools.detect_sigma() # in eV
         lambda_e = 0.0
     
@@ -883,6 +889,17 @@ def IC_rate(initial, final, data=None):
     rate  = np.sum(term1 + term2)
     rate *= (2 * np.pi) / HBAR_J
     rate /= N_geom  #s^-1
+
+    #IC_rate  
+    H = fetch(data, [f"^IC_"]) # Change required if more than one transition in the ensemble
+    print(H.shape, E_col.shape)
+    IC_rate = np.nan_to_num(H *nemo.tools.gauss(E_col, 0,np.sqrt(2*lambda_e*kbt + kbt**2) ) * (2 * np.pi / HBAR_EV), nan=0.0)
+    print("")
+    print("IC Rate Calculation")
+    print("")
+    print(IC_rate)
+    IC_rate = np.sum(IC_rate, axis=0) / 500.0
+    print(IC_rate)
 
     return rate
 
