@@ -150,7 +150,8 @@ def interface():
             ("What is the final state (S0, S1, T1, S2 ...)? "
              "Accepts comma separated values Ex: T1,T2\n")
         )
-        res = nemo.analysis.IC_rate(initial, final)
+        res, res_summation = nemo.analysis.IC_rate(initial, final)
+        print(f"The internal conversion rate from {initial} to {final} is {res_summation} s^-1")
         print(f"The internal conversion rate from {initial} to {final} is {res} s^-1")
         # save to file
         with open("IC_rate.txt", "w") as f:
