@@ -313,6 +313,10 @@ def gauss(x_value, mean, std):
     y_value = (1 / (np.sqrt(2 * np.pi) * std)) * np.exp(-0.5 * ((x_value - mean) / std) ** 2)
     return y_value
 
+##NORMALIZED LORENTZIAN##########################################
+def lorentz(x_value, mean, gamma):
+    y_value = (gamma / np.pi) / ((x_value - mean)**2 + gamma**2)
+    return y_value
 
 ###############################################################
 
