@@ -737,21 +737,24 @@ def rates(initial, dielec, data=None, ensemble_average=False, detailed=False):
         ]
         ##FOR WHEN IC IS AVAILABLE
         # socs_complete = np.hstack((socs_complete,0.0001*np.ones((Singlets.shape[0],Singlets.shape[1]-1))))
-        h_ic = 1e-9 + np.zeros(fetch(data, ["^soc_s"]).shape)  #fetch(data, ["^IC_"])
+        h_ic = 1e-9 + np.zeros(fetch(data, ["^osce_"]).shape) #fetch(data, ["^soc_s"]).shape)  #fetch(data, ["^IC_"])
         initial_state_ic = singlets - (alphast2 / alphaopt1) * ss_s
         final_state_ic = singlets - (alphaopt2 / alphaopt1) * ss_s
-        initial_state_ic, final_state_ic, ss_s, ss_t, h_ic = reorder(
-            initial_state_ic, final_state_ic, ss_s, ss_t, h_ic
-        )
-        eng_to_s0 = delta_emi[:, np.newaxis] 
+        initial_state_ic, h_ic = sorting_parameters(initial_state_ic, h_ic)
+        
+        
+        #initial_state_ic, final_state_ic, ss_s, ss_t, h_ic = reorder(
+        #    initial_state_ic, final_state_ic, ss_s, ss_t, h_ic
+        #) 
         initial_state_ic = initial_state_ic[:, n_state]
         delta_ic = final_state_ic - np.repeat(
             initial_state_ic[:, np.newaxis], final_state_ic.shape[1], axis=1
         )
-        delta_ic[:,0] = eng_to_s0[:,0]
+        eng_to_s0 = delta_emi[:, np.newaxis]
+        delta_ic[:,n_state] = eng_to_s0[:,0]
         lambda_b_ic = (alphast2 / alphaopt1 - alphaopt2 / alphaopt1) * ss_s
         lambda_b_ic[:,0] = lambda_be
-        h_ic = h_ic[:, n_state, :]
+        #h_ic = h_ic[:, n_state, :]
         final = final + [f"S0"] + [f"S{j}" for j in range(1, 1 + singlets.shape[1]) if j != n_state+1]
     elif "t" in initial:
         # Tn to Sm ISC
