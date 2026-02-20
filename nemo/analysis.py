@@ -739,11 +739,22 @@ def rates(initial, dielec, data=None, ensemble_average=False, detailed=False):
         ]
         ##FOR WHEN IC IS AVAILABLE
         # socs_complete = np.hstack((socs_complete,0.0001*np.ones((Singlets.shape[0],Singlets.shape[1]-1))))
-        # delta_ss = Singlets + np.repeat((alphast2/alphaopt1)*Ss_s[:,n_state][:,np.newaxis] - Singlets[:,n_state][:,np.newaxis],Singlets.shape[1],axis=1) - (alphaopt2/alphaopt1)*Ss_s    #Sm (final) - Sn (initial) + lambda_b
-        # indices  = [i for i in range(Singlets.shape[1]) if i != n_state] #Removed Sn to Sn transfers
-        # delta    = np.hstack((delta,delta_ss[:,indices]))
-        # lambda_bt= (alphast2/alphaopt1 - alphaopt2/alphaopt1)*Ss_s
-        # lambda_b = np.hstack((lambda_b,lambda_bt[:,indices]))
+        h_ic = 1e-9 + np.zeros(fetch(data, ["^soc_s"]).shape)  #fetch(data, ["^IC_"])
+        initial_state_ic = singlets - (alphast2 / alphaopt1) * ss_s
+        final_state_ic = singlets - (alphaopt2 / alphaopt1) * ss_s
+        initial_state_ic, final_state_ic, ss_s, ss_t, h_ic = reorder(
+            initial_state_ic, final_state_ic, ss_s, ss_t, h_ic
+        )
+        eng_to_s0 = delta_emi[:, np.newaxis] 
+        initial_state_ic = initial_state_ic[:, n_state]
+        delta_ic = final_state_ic - np.repeat(
+            initial_state_ic[:, np.newaxis], final_state_ic.shape[1], axis=1
+        )
+        delta_ic[:,0] = eng_to_s0[:,0]
+        lambda_b_ic = (alphast2 / alphaopt1 - alphaopt2 / alphaopt1) * ss_s
+        lambda_b_ic[:,0] = lambda_be
+        h_ic = h_ic[:, n_state, :]
+        final = final + [f"S0"] + [f"S{j}" for j in range(1, 1 + singlets.shape[1]) if j != n_state+1]
     elif "t" in initial:
         # Tn to Sm ISC
         initial_state = triplets - (alphast2 / alphaopt1) * ss_t
@@ -784,7 +795,13 @@ def rates(initial, dielec, data=None, ensemble_average=False, detailed=False):
     y_axis = (
         (2 * np.pi / HBAR_EV) * (socs_complete**2) * nemo.tools.gauss(delta, 0, sigma)
     )
-    # hstack y and espectro
+    ##### IC rates
+    sigma_ic = total_reorganization_energy(lambda_b_ic, kbt)
+    y_axis_ic = (
+        (2 * np.pi / HBAR_EV) * (h_ic) * nemo.tools.gauss(delta_ic, 0, sigma_ic)
+    )
+    y_axis = np.hstack((y_axis, y_axis_ic))
+    sigma = np.hstack((sigma, sigma_ic))
     individual = np.hstack((espectro[:, np.newaxis], y_axis))
     number_geoms = y_axis.shape[0]
     rate, error = rate_and_uncertainty(y_axis)
@@ -802,8 +819,9 @@ def rates(initial, dielec, data=None, ensemble_average=False, detailed=False):
             ]
         ]
     )
-    mean_gap = means(delta, y_axis, ensemble_average)[:, np.newaxis]
-    mean_soc = 1000 * means(socs_complete, y_axis, ensemble_average)[:, np.newaxis]
+    mean_gap = means(np.hstack((delta,delta_ic)), y_axis, ensemble_average)[:, np.newaxis]
+    couplings = np.hstack((socs_complete, np.sqrt(h_ic)))
+    mean_soc = 1000 * means(couplings, y_axis, ensemble_average)[:, np.newaxis]
     mean_sigma = means(sigma, y_axis, ensemble_average)[:, np.newaxis]
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
