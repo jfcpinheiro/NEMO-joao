@@ -474,14 +474,16 @@ def gather_data_derivative_couplings(initial, data=None, save=True):
 
             argument_pos =  (E_col * HBAR_EV * freq_row)/(S**2)-(HBAR_EV * freq_row)**2/(2.0*S**2)
             argument_neg = -(E_col * HBAR_EV * freq_row)/(S**2)-(HBAR_EV * freq_row)**2/(2.0*S**2)
-            # print the numpy array argument to a file
-            np.savetxt("debug_argument_pos.csv", argument_pos, delimiter=",", fmt='%10.5f')
-            np.savetxt("debug_argument_neg.csv", argument_neg, delimiter=",", fmt='%10.5f')
-            print(argument_pos)
             exp_pos= np.exp((argument_pos))    
             exp_neg= np.exp((argument_neg))
-            np.savetxt("debug_exp_pos.csv", exp_pos, delimiter=",", fmt='%10.5f')
-            np.savetxt("debug_exp_neg.csv", exp_neg, delimiter=",", fmt='%10.5f')
+            
+            # debugging: print the arguments before exponentiation to check for overflow issues
+            # print the numpy array argument to a file
+            # np.savetxt("debug_argument_pos.csv", argument_pos, delimiter=",", fmt='%10.5f')
+            # np.savetxt("debug_argument_neg.csv", argument_neg, delimiter=",", fmt='%10.5f')
+            # print(argument_pos)
+            # np.savetxt("debug_exp_pos.csv", exp_pos, delimiter=",", fmt='%10.5f')
+            # np.savetxt("debug_exp_neg.csv", exp_neg, delimiter=",", fmt='%10.5f')
             #print(exp_pos)
 
 
@@ -867,12 +869,13 @@ def rates(initial, dielec, data=None, ensemble_average=False, detailed=False):
 
 #########################################################################################
 
-def IC_rate(initial, final, data=None):
+def IC_rate(initial, final, data=None, lambda_e=0.0):
     if data is None:
         data = gather_data(initial, save=True)
         data_dc, data_V, H = gather_data_derivative_couplings(initial, data, save=False)
-        kbt = nemo.tools.detect_sigma() # in eV
-        lambda_e = 0.0
+    
+    kbt = nemo.tools.detect_sigma() # in eV
+    gamma = np.sqrt(2*lambda_e*kbt + kbt**2) # eV, corresponds to 500 cm^-1
     
     initial = initial.lower()
     final = final.lower()
@@ -901,28 +904,59 @@ def IC_rate(initial, final, data=None):
 
     #E_col = energies[:,np.newaxis]  #eV
     freq_row = freq_V[np.newaxis,:] #rad/s
-    gauss1=nemo.tools.gauss(0.0, E_col - HBAR_EV*freq_row + lambda_e, np.sqrt(2*lambda_e*kbt + kbt**2)) #1/eV
-    gauss2=nemo.tools.gauss(0.0, E_col + HBAR_EV*freq_row + lambda_e, np.sqrt(2*lambda_e*kbt + kbt**2)) #1/eV
 
+    # Gaussian distribution calculation
+    gauss1=nemo.tools.gauss(0.0, E_col - HBAR_EV*freq_row + lambda_e, gamma) #1/eV
+    gauss2=nemo.tools.gauss(0.0, E_col + HBAR_EV*freq_row + lambda_e, gamma) #1/eV
     term1 = B * V * gauss1 / E_CHARGE # S.I.
     term2 = B * (V + 1.0) * gauss2 / E_CHARGE # S.I.
-    
     rate  = np.sum(term1 + term2)
     rate *= (2 * np.pi) / HBAR_J
     rate /= N_geom  #s^-1
 
+    # # Gaussian double sigma calculation
+    # gauss1=nemo.tools.gauss(0.0, E_col - HBAR_EV*freq_row + lambda_e, 2.0*np.sqrt(2*lambda_e*kbt + kbt**2)) #1/eV
+    # gauss2=nemo.tools.gauss(0.0, E_col + HBAR_EV*freq_row + lambda_e, 2.0*np.sqrt(2*lambda_e*kbt + kbt**2)) #1/eV
+    # term1 = B * V * gauss1 / E_CHARGE # S.I.
+    # term2 = B * (V + 1.0) * gauss2 / E_CHARGE # S.I.
+    # rate2  = np.sum(term1 + term2)
+    # rate2 *= (2 * np.pi) / HBAR_J
+    # rate2 /= N_geom  #s^-1
+
+    # Lorentzian distribution calculation
+    lortentz1 = nemo.tools.lorentz(0.0, E_col - HBAR_EV*freq_row + lambda_e, gamma) #1/eV
+    lortentz2 = nemo.tools.lorentz(0.0, E_col + HBAR_EV*freq_row + lambda_e, gamma) #1/eV
+    term1_lortentz = B * V * lortentz1 / E_CHARGE # S.I
+    term2_lortentz = B * (V + 1.0) * lortentz2 / E_CHARGE # S.I.
+    rate_lortentz  = np.sum(term1_lortentz + term2_lortentz)
+    rate_lortentz *= (2 * np.pi) / HBAR_J
+    rate_lortentz /= N_geom  #s^-1
+
+    # # Lorentzian gamma calculation
+    # gamma = 500.0/8065.5 # eV, corresponds to 500 cm^-1
+    # lortentz1 = nemo.tools.lorentz(0.0, E_col - HBAR_EV*freq_row + lambda_e, gamma) #1/eV
+    # lortentz2 = nemo.tools.lorentz(0.0, E_col + HBAR_EV*freq_row + lambda_e, gamma) #1/eV
+    # term1_lortentz = B * V * lortentz1 / E_CHARGE # S.I
+    # term2_lortentz = B * (V + 1.0) * lortentz2 / E_CHARGE # S.I.
+    # rate_lortentz2  = np.sum(term1_lortentz + term2_lortentz)
+    # rate_lortentz2 *= (2 * np.pi) / HBAR_J
+    # rate_lortentz2 /= N_geom  #s^-1
+
+    # Voigt gamma calculation
+    voigt1 = nemo.tools.voigt(-E_col + HBAR_EV*freq_row - lambda_e, 2*lambda_e*kbt,kbt) #1/eV
+    voigt2 = nemo.tools.voigt(-E_col - HBAR_EV*freq_row - lambda_e, 2*lambda_e*kbt,kbt) #1/eV
+    term1_voigt = B * V * voigt1 / E_CHARGE # S.I
+    term2_voigt = B * (V + 1.0) * voigt2 / E_CHARGE # S.I.
+    rate_voigt  = np.sum(term1_voigt + term2_voigt)
+    rate_voigt *= (2 * np.pi) / HBAR_J
+    rate_voigt /= N_geom  #s^-1
+
     #IC_rate  
     H = fetch(data, [f"^IC_"]) # Change required if more than one transition in the ensemble
-    print(H.shape, E_col.shape)
     IC_rate = np.nan_to_num(H *nemo.tools.gauss(E_col, 0,np.sqrt(2*lambda_e*kbt + kbt**2) ) * (2 * np.pi / HBAR_EV), nan=0.0)
-    print("")
-    print("IC Rate Calculation")
-    print("")
-    print(IC_rate)
-    IC_rate = np.sum(IC_rate, axis=0) / 500.0
-    print(IC_rate)
+    IC_rate = np.sum(IC_rate, axis=0)[0] / N_geom #s^-1
 
-    return rate
+    return rate, rate_lortentz, rate_voigt
 
 #########################################################################################
 
@@ -1157,3 +1191,59 @@ class Ensemble(object):
             if col != 'Energy':
                 abs_spec_ext[col] = abs_spec_ext[col] * (1e-16) * NA / (1000 * np.log(10))
         return abs_spec_ext
+
+
+
+### IC_TESTING
+def IC_rate_TESTS(initial, final, data=None, data_dc=None, data_V=None, lambda_e=0.0):
+    if ((data is None) or (data_dc is None) or (data_V is None)):
+        data = gather_data(initial, save=True)
+        data_dc, data_V, H = gather_data_derivative_couplings(initial, data, save=False)
+    
+    kbt = nemo.tools.detect_sigma() # in eV
+    
+    initial = initial.lower()
+    final = final.lower()
+
+    if int(initial[1]) < int(final[1]):
+        lower=int(initial[1])
+        higher=int(final[1])
+    else:
+        higher=int(initial[1])
+        lower=int(final[1])
+
+    data = fix_absent_soc(data) 
+    N_geom = data["geometry"].size
+    N_modes = data_dc["mode"].unique().size
+
+    mag_file = nemo.tools.fetch_file("Magnitudes", ['Magnitudes'])
+    data_f = pd.read_csv(mag_file)
+    freq_V = data_f.filter(regex="freq").dropna().to_numpy().flatten()
+
+    # Defines the B and V arrays
+    B = nemo.tools.B_to_vec(data_dc, lower, higher)
+
+    V = nemo.tools.V_to_vec(data_V)
+    
+    E_col = fetch(data, [f"^e_{initial[0]}"]) #eV
+
+    #E_col = energies[:,np.newaxis]  #eV
+    freq_row = freq_V[np.newaxis,:] #rad/s
+    gauss1=nemo.tools.gauss(0.0, E_col - HBAR_EV*freq_row + lambda_e, np.sqrt(2*lambda_e*kbt + kbt**2)) #1/eV
+    gauss2=nemo.tools.gauss(0.0, E_col + HBAR_EV*freq_row + lambda_e, np.sqrt(2*lambda_e*kbt + kbt**2)) #1/eV
+
+    term1 = B * V * gauss1 / E_CHARGE # S.I.
+    term2 = B * (V + 1.0) * gauss2 / E_CHARGE # S.I.
+    
+    rate  = np.sum(term1 + term2)
+    rate *= (2 * np.pi) / HBAR_J
+    rate /= N_geom  #s^-1
+
+    #IC_rate  
+    #H = fetch(data, [f"^IC_"]) # Change required if more than one transition in the ensemble
+    #IC_rate = np.nan_to_num(H *nemo.tools.gauss(E_col, 0,np.sqrt(2*lambda_e*kbt + kbt**2) ) * (2 * np.pi / HBAR_EV), nan=0.0)
+    #IC_rate = np.sum(IC_rate, axis=0)[0] / 500.0
+
+    return rate#, IC_rate
+
+#########################################################################################

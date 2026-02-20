@@ -9,6 +9,7 @@ from subprocess import Popen
 import numpy as np
 import pandas as pd
 from scipy.stats import norm
+from scipy.special import wofz
 from joblib import Parallel, delayed
 import lx.tools
 import lx.parser
@@ -313,8 +314,19 @@ def gauss(x_value, mean, std):
     y_value = (1 / (np.sqrt(2 * np.pi) * std)) * np.exp(-0.5 * ((x_value - mean) / std) ** 2)
     return y_value
 
+##NORMALIZED LORENTZIAN##########################################
+def lorentz(x_value, mean, gamma):
+    y_value = (gamma / np.pi) / ((x_value - mean)**2 + gamma**2)
+    return y_value
 
-###############################################################
+##Voigt FUNCTION#############################################
+
+def voigt(mu, sigma, gamma):
+    sigma += 1e-10
+    z = (mu + 1j*gamma) / (np.sqrt(2)*sigma)
+    return np.real(wofz(z)) / (np.sqrt(2*np.pi)*sigma)
+
+#############################################################
 
 
 ##COMPUTES AVG TRANSITION DIPOLE MOMENT########################
