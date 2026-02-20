@@ -322,6 +322,7 @@ def lorentz(x_value, mean, gamma):
 ##Voigt FUNCTION#############################################
 
 def voigt(mu, sigma, gamma):
+    sigma += 1e-10
     z = (mu + 1j*gamma) / (np.sqrt(2)*sigma)
     return np.real(wofz(z)) / (np.sqrt(2*np.pi)*sigma)
 
