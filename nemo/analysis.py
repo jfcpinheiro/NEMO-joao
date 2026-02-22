@@ -689,10 +689,16 @@ def rates(initial, dielec, data=None, ensemble_average=False, detailed=False):
     delta_emi, oscs, energies = sorting_parameters(delta_emi_unsorted, oscs, energies)
     delta_emi, oscs, energies = select_columns(n_state, delta_emi, oscs, energies)
     espectro = constante * ((delta_emi - lambda_be) ** 2) * oscs
+    ## Scale of the Lorentzian distribution
+    gammas_lorentz = espectro / 2
+    #print(f"{np.min(gammas_lorentz):.5e} <= {np.mean(gammas_lorentz):.5e} <= {np.max(gammas_lorentz):.5e} eV")
     tdm = nemo.tools.calc_tdm(oscs, energies, espectro)
     x_axis = x_values(delta_emi, l_total)
-    y_axis = espectro[:, np.newaxis] * nemo.tools.gauss(
-        x_axis, delta_emi[:, np.newaxis], l_total[:, np.newaxis]
+    #y_axis = espectro[:, np.newaxis] * nemo.tools.gauss(
+    #    x_axis, delta_emi[:, np.newaxis], l_total[:, np.newaxis]
+    #)
+    y_axis = espectro[:, np.newaxis] * nemo.tools.voigt(
+        x_axis + delta_emi[:, np.newaxis], lambda_be[:, np.newaxis], gammas_lorentz[:, np.newaxis]
     )
     number_geoms = y_axis.shape[0]
     mean_y, error = rate_and_uncertainty(y_axis)
@@ -788,13 +794,19 @@ def rates(initial, dielec, data=None, ensemble_average=False, detailed=False):
         # final.extend([i.upper()[4:] for i in data.columns.values if 'soc_t' in i])
 
     sigma = total_reorganization_energy(lambda_b, kbt)
+    #y_axis = (
+    #    (2 * np.pi / HBAR_EV) * (socs_complete**2) * nemo.tools.gauss(delta, 0, sigma)
+    #)
     y_axis = (
-        (2 * np.pi / HBAR_EV) * (socs_complete**2) * nemo.tools.gauss(delta, 0, sigma)
+        (2 * np.pi / HBAR_EV) * (socs_complete**2) * nemo.tools.voigt(delta, lambda_b, gammas_lorentz[:, np.newaxis])
     )
     ##### IC rates
     sigma_ic = total_reorganization_energy(lambda_b_ic, kbt)
+    #y_axis_ic = (
+    #    (2 * np.pi / HBAR_EV) * (h_ic) * nemo.tools.gauss(delta_ic, 0, sigma_ic)
+    #)
     y_axis_ic = (
-        (2 * np.pi / HBAR_EV) * (h_ic) * nemo.tools.gauss(delta_ic, 0, sigma_ic)
+        (2 * np.pi / HBAR_EV) * (h_ic) * nemo.tools.voigt(delta_ic, lambda_b_ic, gammas_lorentz[:, np.newaxis])
     )
     y_axis = np.hstack((y_axis, y_axis_ic))
     sigma = np.hstack((sigma, sigma_ic))
