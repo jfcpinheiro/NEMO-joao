@@ -321,11 +321,30 @@ def lorentz(x_value, mean, gamma):
 
 ##Voigt FUNCTION#############################################
 
-def voigt(mu, sigma, gamma):
-    sigma += 1e-10
-    z = (mu + 1j*gamma) / (np.sqrt(2)*sigma)
-    return np.real(wofz(z)) / (np.sqrt(2*np.pi)*sigma)
+def voigt(x, sigma, gamma, eps=0.0):
+    """
+    Vectorized Voigt profile.
+    If sigma <= eps, returns the Lorentzian limit gamma / (pi*(x^2 + gamma^2)).
+    
+    x, sigma, gamma: scalars or arrays (broadcastable to common shape)
+    eps: threshold for treating sigma as zero (use small value like 1e-14 if desired)
+    """
+    x, sigma, gamma = np.broadcast_arrays(x, sigma, gamma)
 
+    out = np.empty_like(x, dtype=float)
+
+    # Where sigma is effectively zero -> Lorentzian
+    mask0 = sigma <= eps
+    if np.any(mask0):
+        out[mask0] = gamma[mask0] / (np.pi * (x[mask0]**2 + gamma[mask0]**2))
+
+    # Where sigma is nonzero -> Voigt via wofz
+    mask = ~mask0
+    if np.any(mask):
+        z = (x[mask] + 1j * gamma[mask]) / (np.sqrt(2) * sigma[mask])
+        out[mask] = np.real(wofz(z)) / (np.sqrt(2*np.pi) * sigma[mask])
+
+    return out
 #############################################################
 
 
