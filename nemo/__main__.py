@@ -150,15 +150,17 @@ def interface():
             ("What is the final state (S0, S1, T1, S2 ...)? "
              "Accepts comma separated values Ex: T1,T2\n")
         )
-        res, res_lorentz, res_voigt = nemo.analysis.IC_rate(initial, final)
-        print(f"The internal conversion rate from {initial} to {final} is {res: .3e} s^-1 (gaussian distribution)")
-        print(f"The internal conversion rate from {initial} to {final} is {res_lorentz: .3e} s^-1 (lorentzian distribution)")
-        print(f"The internal conversion rate from {initial} to {final} is {res_voigt: .3e} s^-1 (voigt distribution)")
+        res1, res_2, res_3, res_4 = nemo.analysis.IC_rate(initial, final)
+        print(f"Gauss+KbT {initial} to {final} is {res1: .3e} s^-1")
+        print(f"Gauss+rate_emi {initial} to {final} is {res_2: .3e} s^-1")
+        print(f"Lorentz+KbT {initial} to {final} is {res_3: .3e} s^-1")
+        print(f"Lorentz+rate_emi {initial} to {final} is {res_4: .3e} s^-1")
         # save to file
         with open("IC_rate.txt", "w") as f:
-            f.write(f"Internal conversion rate from {initial} to {final}: {res:.3e} s^-1\n")
-            f.write(f"Internal conversion rate from {initial} to {final}: {res_lorentz:.3e} s^-1\n")
-            f.write(f"Internal conversion rate from {initial} to {final}: {res_voigt:.3e} s^-1\n")
+            f.write(f"Internal conversion rate from {initial} to {final}: {res1:.3e} s^-1\n")
+            f.write(f"Internal conversion rate from {initial} to {final}: {res_2:.3e} s^-1\n")
+            f.write(f"Internal conversion rate from {initial} to {final}: {res_3:.3e} s^-1\n")
+            f.write(f"Internal conversion rate from {initial} to {final}: {res_4:.3e} s^-1\n")
 
 
     elif operation == "9":

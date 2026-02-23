@@ -853,7 +853,7 @@ def check_derivative_couplings(file):
 #########################################################################################
 
 ##COMPUTES THE V PARAMETERS #####
-def get_V(mag_file, V_option='POSITIVESemiClass'):
+def get_V(mag_file, V_option='quantum'):
     
     temp = float(mag_file.split("_")[1].strip("K"))
 
