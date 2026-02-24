@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from math import tau
 import os
 import re
 import warnings
@@ -338,13 +337,12 @@ def gather_data(initial, save=True):
         )
 
     # Check if derivative coupling calculation was performed
-    DC_computation, states = nemo.parser.check_derivative_couplings(files[0])
-    if DC_computation:
-        _, _, H = gather_data_derivative_couplings(initial, pd.DataFrame(data, columns=header), save)
+    dc_computation, states = nemo.parser.check_derivative_couplings(files[0])
+    if dc_computation:
+        _, _, h = gather_data_derivative_couplings(initial, pd.DataFrame(data, columns=header), save)
         header.extend([f"IC_{i}_{j}(eV)" for i, j in combinations(states, 2)])
         any({formats.update({f"IC_{i}_{j}(eV)": "{:.5e}"}) for i, j in combinations(states, 2)})
-        for i, j in combinations(states, 2):
-            data=np.hstack((data, H))
+        data=np.hstack((data, h))
 
 
 
@@ -381,7 +379,7 @@ def gather_data_derivative_couplings(initial, data=None, save=True):
     files = [i for i in os.listdir("Geometries") if ".log" in i]
     files = check_normal(files)
     files = sorted(files, key=lambda pair: float(pair.split("-")[1]))
-    _, DC_states = nemo.parser.check_derivative_couplings(files[0])
+    _, dc_states = nemo.parser.check_derivative_couplings(files[0])
     ###### OBTAINS THE B PARAMETERS ########
     formats_dc = {}
     freq_log = nemo.tools.fetch_file("frequency", [".out", ".log"])
@@ -390,8 +388,8 @@ def gather_data_derivative_couplings(initial, data=None, save=True):
         final_state,
         geometry,
         mode,
-        B
-    ) = nemo.parser.get_derivative_couplings(initial[1:], DC_states, files, freq_log)
+        b
+    ) = nemo.parser.get_derivative_couplings(initial[1:], dc_states, files, freq_log)
     
     arquivo_dc =f"Derivative_Couplings_{initial.upper()}_.lx"
     data_dc = pd.DataFrame()
@@ -399,7 +397,7 @@ def gather_data_derivative_couplings(initial, data=None, save=True):
     data_dc["final_state"] = np.array(final_state).astype(str)
     data_dc["geometry"] = geometry
     data_dc["mode"] = mode
-    data_dc["B"] = B
+    data_dc["B"] = b
 
     formats_dc["initial_state"] = "{:s}"
     formats_dc["final_state"] = "{:s}"
@@ -420,7 +418,7 @@ def gather_data_derivative_couplings(initial, data=None, save=True):
     (
         geometry_V,
         mode_V,
-        V
+        v
     ) = nemo.parser.get_V(Mag_file)
     
     formats_V = {}
@@ -428,7 +426,7 @@ def gather_data_derivative_couplings(initial, data=None, save=True):
     data_V = pd.DataFrame()
     data_V["geometry"] = geometry_V
     data_V["mode"] = mode_V
-    data_V["V"] = V
+    data_V["V"] = v
 
     formats_V["geometry"] = "{:.0f}"
     formats_V["mode"] = "{:.0f}"
@@ -444,9 +442,9 @@ def gather_data_derivative_couplings(initial, data=None, save=True):
 
     #------------------------------------#
     # Computes the H parameters
-    H = 0.0
+    h = 0.0
     if data is not None:   
-        V = nemo.tools.V_to_vec(data_V)
+        v = nemo.tools.V_to_vec(data_V)
 
         # ----- Freq   
         mag_file = nemo.tools.fetch_file("Magnitudes", ['Magnitudes'])
@@ -454,11 +452,11 @@ def gather_data_derivative_couplings(initial, data=None, save=True):
         freq_V = data_f.filter(regex="freq").dropna().to_numpy().flatten()
         freq_row = freq_V[np.newaxis,:] #rad/s
 
-        S =nemo.tools.detect_sigma() #eV
+        s = nemo.tools.detect_sigma() #eV
 
         
         i=0
-        for final in DC_states:
+        for final in dc_states:
             if final == int(initial[1]):
                 continue
             if int(initial[1]) < final:
@@ -469,40 +467,47 @@ def gather_data_derivative_couplings(initial, data=None, save=True):
                 lower=final
             
             # ----- Get the transition energy for the ith transition
-            E_col = fetch(data, [f"^e_{initial.lower()[0]}"])[:,i] # eV
-            E_col = E_col[:,np.newaxis]
+            e_col = fetch(data, [f"^e_{initial.lower()[0]}"])[:,i] # eV
+            e_col = e_col[:,np.newaxis]
             i+=1
 
-            argument_pos =  (E_col * HBAR_EV * freq_row)/(S**2)-(HBAR_EV * freq_row)**2/(2.0*S**2)
-            argument_neg = -(E_col * HBAR_EV * freq_row)/(S**2)-(HBAR_EV * freq_row)**2/(2.0*S**2)
-            exp_pos= np.exp((argument_pos))    
-            exp_neg= np.exp((argument_neg))
+
+
+            # ----_ Get the corresponding coupling for the ith transition
+            b = nemo.tools.B_to_vec(data_dc, lower, higher) # J^2
+            
+            # ----- Calculate h_IC
+            # ----- Gaussian line shape
+            # argument_pos =  (e_col * HBAR_EV * freq_row)/(s**2)-(HBAR_EV * freq_row)**2/(2.0*s**2)
+            # argument_neg = -(e_col * HBAR_EV * freq_row)/(s**2)-(HBAR_EV * freq_row)**2/(2.0*s**2)
+            # term_pos= np.exp((argument_pos))    
+            # term_neg= np.exp((argument_neg))
             
             # debugging: print the arguments before exponentiation to check for overflow issues
             # print the numpy array argument to a file
             # np.savetxt("debug_argument_pos.csv", argument_pos, delimiter=",", fmt='%10.5f')
             # np.savetxt("debug_argument_neg.csv", argument_neg, delimiter=",", fmt='%10.5f')
             # print(argument_pos)
-            # np.savetxt("debug_exp_pos.csv", exp_pos, delimiter=",", fmt='%10.5f')
-            # np.savetxt("debug_exp_neg.csv", exp_neg, delimiter=",", fmt='%10.5f')
-            #print(exp_pos)
-
-
-            # ----_ Get the corresponding coupling for the ith transition
-            B = nemo.tools.B_to_vec(data_dc, lower, higher) # J^2
+            # np.savetxt("debug_exp_pos.csv", term_pos, delimiter=",", fmt='%10.5f')
+            # np.savetxt("debug_exp_neg.csv", term_neg, delimiter=",", fmt='%10.5f')
+            #print(term_pos)
             
-            # ----- Calculate H
-            H = np.nan_to_num(B * (V * exp_pos + (V + 1) * exp_neg), nan=0.0)
+            # ------ Lorentzian line shape
+            term_pos = nemo.tools.voigt(-e_col+HBAR_EV*freq_row,0.0,s) / nemo.tools.voigt(-e_col,0.0,s)
+            term_neg = nemo.tools.voigt(-e_col-HBAR_EV*freq_row,0.0,s) / nemo.tools.voigt(-e_col,0.0,s)
+
+
+            h = b * (v * term_pos + (v + 1) * term_neg)
             #np.savetxt("debug.csv", H, delimiter=",", fmt='%10.5f') #
 
             # ----- sum on normal modes
-            H=np.sum(H, axis=1)[:,np.newaxis]
+            h=np.sum(h, axis=1)[:,np.newaxis]
             
             # ----- Add H for this transition pair
             try:
-                total_H = np.hstack((total_H, H))
+                total_H = np.hstack((total_H, h))
             except NameError:
-                total_H = H
+                total_H = h
     return data_dc, data_V, total_H / (E_CHARGE**2) # J**2 to eV**2
 #######################################################################################
 
@@ -571,6 +576,16 @@ def fix_absent_soc(data):
     else:
         singlets = [i.split("_")[1] for i in columns if "e_s" in i and "osc" not in i]
         triplets = [i.split("_")[1] for i in columns if "e_t" in i and "osc" not in i]
+        if len(singlets) == 0:
+            for i in range(1, 1 + len(triplets)):
+                singlets = [f"s{i}"]
+                data[f"e_s{i}"] = 0.0
+                data[f"d_s{i}"] = 0.0
+        if len(triplets) == 0:
+            for i in range(1, 1 + len(singlets)):
+                triplets = [f"t{i}"]
+                data[f"e_t{i}"] = 0.0
+                data[f"d_t{i}"] = 0.0
         for singlet in singlets:
             for triplet in triplets:
                 data[f"soc_{singlet}_{triplet}"] = 0
@@ -676,6 +691,13 @@ def rates(initial, dielec, data=None, ensemble_average=False, detailed=False):
     ).flatten()
     l_total = total_reorganization_energy(lambda_be, kbt)
     energies = fetch(data, [f"^e_{initial[0]}"])
+    ###########################################
+    ###########################################
+    ###########################################
+    energies = energies - 1.69321 + 1.6521
+    ###########################################
+    ###########################################
+    ###########################################
     delta_emi_unsorted = energies - (alphast2 / alphaopt1) * fetch(
         data, [f"^d_{initial[0]}"]
     )
@@ -745,7 +767,7 @@ def rates(initial, dielec, data=None, ensemble_average=False, detailed=False):
             if "soc_" + initial.lower() + "_" in i
         ]
         ##FOR WHEN IC IS AVAILABLE
-        h_ic = 1e-9 + np.zeros(fetch(data, ["^osce_"]).shape) #fetch(data, ["^IC_"])
+        h_ic = 1e-9 + fetch(data, ["^IC_"])
         initial_state_ic = singlets - (alphast2 / alphaopt1) * ss_s
         final_state_ic = singlets - (alphaopt2 / alphaopt1) * ss_s
         initial_state_ic, h_ic = sorting_parameters(initial_state_ic, h_ic)
@@ -758,6 +780,13 @@ def rates(initial, dielec, data=None, ensemble_average=False, detailed=False):
         lambda_b_ic = (alphast2 / alphaopt1 - alphaopt2 / alphaopt1) * ss_s
         lambda_b_ic[:,0] = lambda_be
         final = final + [f"S0"] + [f"S{j}" for j in range(1, 1 + singlets.shape[1]) if j != n_state+1]
+        ###########################################
+        ###########################################
+        ###########################################
+        delta_ic = delta_ic - 1.69321 + 1.6521
+        ###########################################
+        ###########################################
+        ###########################################
     elif "t" in initial:
         # Tn to Sm ISC
         initial_state = triplets - (alphast2 / alphaopt1) * ss_t
@@ -806,8 +835,10 @@ def rates(initial, dielec, data=None, ensemble_average=False, detailed=False):
     #y_axis_ic = (
     #    (2 * np.pi / HBAR_EV) * (h_ic) * nemo.tools.gauss(delta_ic, 0, sigma_ic)
     #)
+    #gammas_lorentz = np.ones(number_geoms) * HBAR_EV / 2.0 * 6.46e05 #azulene
+    #gammas_lorentz = np.ones(number_geoms) * HBAR_EV / 2.0 * 1.39e08 #PM567I
     y_axis_ic = (
-        (2 * np.pi / HBAR_EV) * (h_ic) * nemo.tools.voigt(delta_ic, lambda_b_ic, gammas_lorentz[:, np.newaxis])
+        (2 * np.pi / HBAR_EV) * (h_ic) * nemo.tools.voigt(-delta_ic, 2.0*lambda_b_ic*gammas_lorentz[:,np.newaxis], gammas_lorentz[:, np.newaxis])
     )
     y_axis = np.hstack((y_axis, y_axis_ic))
     sigma = np.hstack((sigma, sigma_ic))
@@ -882,9 +913,8 @@ def IC_rate(initial, final, data=None, lambda_e=0.0):
     
     kbt = nemo.tools.detect_sigma() # in eV
     gamma = np.sqrt(2*lambda_e*kbt + kbt**2) # eV, corresponds to 500 cm^-1
-    #rate_emi=6.46e05 #azulene
-    rate_emi=1.39e08 #PM567
-    rate_emi=1.39e08 #PM567
+    rate_emi=6.46e05 #azulene
+    #rate_emi=1.39e08 #PM567
     
     initial = initial.lower()
     final = final.lower()

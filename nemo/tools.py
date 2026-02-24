@@ -732,9 +732,9 @@ def V_to_vec(data_V):
     shape=(int(data_V["geometry"].max()),
            int(data_V["mode"].max())
            )
-    V=np.zeros(shape)
-    V[data_V["geometry"]-1, data_V["mode"]-1] = data_V["V"]
-    return V
+    v=np.zeros(shape)
+    v[data_V["geometry"]-1, data_V["mode"]-1] = data_V["V"]
+    return v
 
 def B_to_vec(data_dc, lower, higher):
     data_dc[['initial_state', 'final_state']] = data_dc[['initial_state', 'final_state']].astype(int)
@@ -743,7 +743,7 @@ def B_to_vec(data_dc, lower, higher):
            int(data_dc["geometry"].max()),
            int(data_dc["mode"].max())
            )
-    B_matrix=np.zeros(shape)
-    B_matrix[data_dc["initial_state"], data_dc["final_state"], data_dc["geometry"]-1, data_dc["mode"]-1] = data_dc["B"]
-    B=B_matrix[lower][higher]
-    return B
+    b_matrix=np.zeros(shape)
+    b_matrix[data_dc["initial_state"], data_dc["final_state"], data_dc["geometry"]-1, data_dc["mode"]-1] = data_dc["B"]
+    b=b_matrix[lower][higher]
+    return b
