@@ -824,7 +824,7 @@ def rates(initial, dielec, data=None, ensemble_average=False, detailed=False):
     #gammas_lorentz = np.ones(number_geoms) * HBAR_EV / 2.0 * 6.46e05 #azulene
     #gammas_lorentz = np.ones(number_geoms) * HBAR_EV / 2.0 * 1.39e08 #PM567I
     y_axis_ic = (
-        (2 * np.pi / HBAR_EV) * (h_ic) * nemo.tools.voigt(-delta_ic, 2.0*lambda_b_ic*gammas_lorentz[:,np.newaxis], gammas_lorentz[:, np.newaxis])
+        (2 * np.pi / HBAR_EV) * (h_ic) * nemo.tools.voigt(-delta_ic - lambda_b_ic, 2.0*lambda_b_ic*gammas_lorentz[:,np.newaxis], gammas_lorentz[:, np.newaxis])
     )
     y_axis = np.hstack((y_axis, y_axis_ic))
     sigma = np.hstack((sigma, sigma_ic))
