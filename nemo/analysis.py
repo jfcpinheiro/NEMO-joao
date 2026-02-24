@@ -691,13 +691,6 @@ def rates(initial, dielec, data=None, ensemble_average=False, detailed=False):
     ).flatten()
     l_total = total_reorganization_energy(lambda_be, kbt)
     energies = fetch(data, [f"^e_{initial[0]}"])
-    ###########################################
-    ###########################################
-    ###########################################
-    energies = energies - 1.69321 + 1.6521
-    ###########################################
-    ###########################################
-    ###########################################
     delta_emi_unsorted = energies - (alphast2 / alphaopt1) * fetch(
         data, [f"^d_{initial[0]}"]
     )
@@ -780,13 +773,6 @@ def rates(initial, dielec, data=None, ensemble_average=False, detailed=False):
         lambda_b_ic = (alphast2 / alphaopt1 - alphaopt2 / alphaopt1) * ss_s
         lambda_b_ic[:,0] = lambda_be
         final = final + [f"S0"] + [f"S{j}" for j in range(1, 1 + singlets.shape[1]) if j != n_state+1]
-        ###########################################
-        ###########################################
-        ###########################################
-        delta_ic = delta_ic - 1.69321 + 1.6521
-        ###########################################
-        ###########################################
-        ###########################################
     elif "t" in initial:
         # Tn to Sm ISC
         initial_state = triplets - (alphast2 / alphaopt1) * ss_t
