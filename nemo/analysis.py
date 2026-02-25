@@ -452,8 +452,6 @@ def gather_data_derivative_couplings(initial, data=None, save=True):
         freq_V = data_f.filter(regex="freq").dropna().to_numpy().flatten()
         freq_row = freq_V[np.newaxis,:] #rad/s
 
-        s = nemo.tools.detect_sigma() #eV
-
         
         i=0
         for final in dc_states:
@@ -466,9 +464,18 @@ def gather_data_derivative_couplings(initial, data=None, save=True):
                 higher=int(initial[1])
                 lower=final
             
+
+            # Compute the geometry dependent rate for the ith transition
             # ----- Get the transition energy for the ith transition
             e_col = fetch(data, [f"^e_{initial.lower()[0]}"])[:,i] # eV
             e_col = e_col[:,np.newaxis]
+            e_col *= -1.0
+            # ----- Get oscillator strength for the ith transition
+            osc_col = fetch(data, [f"^osce_{initial.lower()[0]}"])[:,i] # 
+            osc_col = osc_col[:,np.newaxis]
+            constante = E_CHARGE**2 / (2.0 * np.pi * HBAR_EV * MASS_E * (LIGHT_SPEED**3.0) * EPSILON_0)
+            espectro = constante * ((e_col) ** 2 ) * osc_col
+            gammas_lorentz = espectro / 2.0
             i+=1
 
 
@@ -493,8 +500,8 @@ def gather_data_derivative_couplings(initial, data=None, save=True):
             #print(term_pos)
             
             # ------ Lorentzian line shape
-            term_pos = nemo.tools.voigt(-e_col+HBAR_EV*freq_row,0.0,s) / nemo.tools.voigt(-e_col,0.0,s)
-            term_neg = nemo.tools.voigt(-e_col-HBAR_EV*freq_row,0.0,s) / nemo.tools.voigt(-e_col,0.0,s)
+            term_pos = nemo.tools.voigt(-e_col+HBAR_EV*freq_row,0.0,gammas_lorentz) / nemo.tools.voigt(-e_col,0.0,gammas_lorentz)
+            term_neg = nemo.tools.voigt(-e_col-HBAR_EV*freq_row,0.0,gammas_lorentz) / nemo.tools.voigt(-e_col,0.0,gammas_lorentz)
 
 
             h = b * (v * term_pos + (v + 1) * term_neg)
@@ -809,22 +816,23 @@ def rates(initial, dielec, data=None, ensemble_average=False, detailed=False):
         # lambda_b = np.hstack((lambda_b,lambda_bt[:,indices]))
         # final.extend([i.upper()[4:] for i in data.columns.values if 'soc_t' in i])
 
-    sigma = total_reorganization_energy(lambda_b, kbt)
+    #sigma = total_reorganization_energy(lambda_b, kbt)
+    sigma = np.sqrt(2 * lambda_b * kbt)
     #y_axis = (
     #    (2 * np.pi / HBAR_EV) * (socs_complete**2) * nemo.tools.gauss(delta, 0, sigma)
     #)
     y_axis = (
-        (2 * np.pi / HBAR_EV) * (socs_complete**2) * nemo.tools.voigt(delta, lambda_b, gammas_lorentz[:, np.newaxis])
+        (2 * np.pi / HBAR_EV) * (socs_complete**2) * nemo.tools.voigt(delta, sigma, gammas_lorentz[:, np.newaxis])
     )
     ##### IC rates
-    sigma_ic = total_reorganization_energy(lambda_b_ic, kbt)
+    sigma_ic = np.sqrt(2 * lambda_b_ic * kbt)
     #y_axis_ic = (
     #    (2 * np.pi / HBAR_EV) * (h_ic) * nemo.tools.gauss(delta_ic, 0, sigma_ic)
     #)
     #gammas_lorentz = np.ones(number_geoms) * HBAR_EV / 2.0 * 6.46e05 #azulene
     #gammas_lorentz = np.ones(number_geoms) * HBAR_EV / 2.0 * 1.39e08 #PM567I
     y_axis_ic = (
-        (2 * np.pi / HBAR_EV) * (h_ic) * nemo.tools.voigt(-delta_ic - lambda_b_ic, 2.0*lambda_b_ic*gammas_lorentz[:,np.newaxis], gammas_lorentz[:, np.newaxis])
+        (2 * np.pi / HBAR_EV) * (h_ic) * nemo.tools.voigt(-delta_ic, sigma_ic, gammas_lorentz[:, np.newaxis])
     )
     y_axis = np.hstack((y_axis, y_axis_ic))
     sigma = np.hstack((sigma, sigma_ic))
@@ -925,14 +933,20 @@ def IC_rate(initial, final, data=None, lambda_e=0.0):
 
     V = nemo.tools.V_to_vec(data_V)
     
-    E_col = fetch(data, [f"^e_{initial[0]}"]) #eV
+    e_col = fetch(data, [f"^e_{initial[0]}"]) #eV
+    e_col *= -1.0 # downhill transition
+    # ----- Get oscillator strength for the ith transition
+    osc_col = fetch(data, [f"^osce_{initial.lower()[0]}"]) # 
+    constante = E_CHARGE**2 / (2.0 * np.pi * HBAR_EV * MASS_E * (LIGHT_SPEED**3.0) * EPSILON_0)
+    espectro = constante * ((e_col) ** 2 ) * osc_col
+    gammas_lorentz = espectro / 2.0
 
     #E_col = energies[:,np.newaxis]  #eV
     freq_row = freq_V[np.newaxis,:] #rad/s
 
     # Gaussian distribution gamma=KbT
-    gauss1=nemo.tools.gauss(0.0, E_col - HBAR_EV*freq_row + lambda_e, gamma) #1/eV
-    gauss2=nemo.tools.gauss(0.0, E_col + HBAR_EV*freq_row + lambda_e, gamma) #1/eV
+    gauss1=nemo.tools.gauss(0.0, e_col - HBAR_EV*freq_row + lambda_e, gamma) #1/eV
+    gauss2=nemo.tools.gauss(0.0, e_col + HBAR_EV*freq_row + lambda_e, gamma) #1/eV
     term1 = B * V * gauss1 / E_CHARGE # S.I.
     term2 = B * (V + 1.0) * gauss2 / E_CHARGE # S.I.
     rate  = np.sum(term1 + term2)
@@ -941,9 +955,10 @@ def IC_rate(initial, final, data=None, lambda_e=0.0):
     rate_gauss_kbt = rate
 
     # Gaussian distribution gamma=hbar/2*rate
-    gamma = HBAR_EV / 2.0 * rate_emi # eV
-    gauss1=nemo.tools.gauss(0.0, E_col - HBAR_EV*freq_row + lambda_e, gamma) #1/eV
-    gauss2=nemo.tools.gauss(0.0, E_col + HBAR_EV*freq_row + lambda_e, gamma) #1/eV
+    dispersion = HBAR_EV / 2.0 * rate_emi # eV
+    gamma= np.sqrt(2*lambda_e*kbt + dispersion**2) # eV
+    gauss1=nemo.tools.gauss(0.0, e_col - HBAR_EV*freq_row + lambda_e, gamma) #1/eV
+    gauss2=nemo.tools.gauss(0.0, e_col + HBAR_EV*freq_row + lambda_e, gamma) #1/eV
     term1 = B * V * gauss1 / E_CHARGE # S.I.
     term2 = B * (V + 1.0) * gauss2 / E_CHARGE # S.I.
     rate  = np.sum(term1 + term2)
@@ -952,9 +967,9 @@ def IC_rate(initial, final, data=None, lambda_e=0.0):
     rate_gauss_emi = rate
 
     # Lorentzian distribution gamma=kbT 
-    gamma=np.sqrt(2*lambda_e*kbt + kbt**2) # eV
-    voigt1 = nemo.tools.voigt(-E_col + HBAR_EV*freq_row - lambda_e, 2*lambda_e*kbt,gamma) #1/eV
-    voigt2 = nemo.tools.voigt(-E_col - HBAR_EV*freq_row - lambda_e, 2*lambda_e*kbt,gamma) #1/eV
+    gamma=kbt # eV
+    voigt1 = nemo.tools.voigt(-e_col + HBAR_EV*freq_row - lambda_e, np.sqrt(2*lambda_e*kbt),gamma) #1/eV
+    voigt2 = nemo.tools.voigt(-e_col - HBAR_EV*freq_row - lambda_e, np.sqrt(2*lambda_e*kbt),gamma) #1/eV
     term1_voigt = B * V * voigt1 / E_CHARGE # S.I
     term2_voigt = B * (V + 1.0) * voigt2 / E_CHARGE # S.I.
     rate_voigt  = np.sum(term1_voigt + term2_voigt)
@@ -964,8 +979,8 @@ def IC_rate(initial, final, data=None, lambda_e=0.0):
 
     # Lorentzian distribution gamma=hbar/2*rate
     gamma = HBAR_EV / 2.0 * rate_emi # eV
-    voigt1 = nemo.tools.voigt(-E_col + HBAR_EV*freq_row - lambda_e, 2*lambda_e*kbt,gamma) #1/eV
-    voigt2 = nemo.tools.voigt(-E_col - HBAR_EV*freq_row - lambda_e, 2*lambda_e*kbt,gamma) #1/eV
+    voigt1 = nemo.tools.voigt(-e_col + HBAR_EV*freq_row - lambda_e, np.sqrt(2*lambda_e*kbt),gamma) #1/eV
+    voigt2 = nemo.tools.voigt(-e_col - HBAR_EV*freq_row - lambda_e, np.sqrt(2*lambda_e*kbt),gamma) #1/eV
     term1_voigt = B * V * voigt1 / E_CHARGE # S.I
     term2_voigt = B * (V + 1.0) * voigt2 / E_CHARGE # S.I.
     rate_voigt  = np.sum(term1_voigt + term2_voigt)
@@ -973,12 +988,22 @@ def IC_rate(initial, final, data=None, lambda_e=0.0):
     rate_voigt /= N_geom  #s^-1
     rate_lorentz_emi = rate_voigt
 
+    # Lorentzian distribution geometry dependent rate; gamma=hbar/2*rate
+    voigt1 = nemo.tools.voigt(-e_col + HBAR_EV*freq_row - lambda_e, np.sqrt(2*lambda_e*kbt),gammas_lorentz) #1/eV
+    voigt2 = nemo.tools.voigt(-e_col - HBAR_EV*freq_row - lambda_e, np.sqrt(2*lambda_e*kbt),gammas_lorentz) #1/eV
+    term1_voigt = B * V * voigt1 / E_CHARGE # S.I
+    term2_voigt = B * (V + 1.0) * voigt2 / E_CHARGE # S.I.
+    rate_voigt  = np.sum(term1_voigt + term2_voigt)
+    rate_voigt *= (2 * np.pi) / HBAR_J
+    rate_voigt /= N_geom  #s^-1
+    rate_geom_dependent = rate_voigt
+
     #IC_rate  
     H = fetch(data, [f"^IC_"]) # Change required if more than one transition in the ensemble
-    IC_rate = np.nan_to_num(H *nemo.tools.gauss(E_col, 0,np.sqrt(2*lambda_e*kbt + kbt**2) ) * (2 * np.pi / HBAR_EV), nan=0.0)
+    IC_rate = np.nan_to_num(H *nemo.tools.gauss(e_col, 0,np.sqrt(2*lambda_e*kbt + kbt**2) ) * (2 * np.pi / HBAR_EV), nan=0.0)
     IC_rate = np.sum(IC_rate, axis=0)[0] / N_geom #s^-1
 
-    return rate_gauss_kbt, rate_gauss_emi, rate_lorentz_kbt, rate_lorentz_emi
+    return rate_gauss_kbt, rate_gauss_emi, rate_lorentz_kbt, rate_lorentz_emi, rate_geom_dependent
 
 #########################################################################################
 
@@ -1248,14 +1273,15 @@ def IC_rate_TESTS(initial, final, data=None, data_dc=None, data_V=None, lambda_e
 
     V = nemo.tools.V_to_vec(data_V)
     
-    E_col = fetch(data, [f"^e_{initial[0]}"]) #eV
+    e_col = fetch(data, [f"^e_{initial[0]}"]) #eV
+    e_col *= -1.0 # downhill transition
 
     #E_col = energies[:,np.newaxis]  #eV
     freq_row = freq_V[np.newaxis,:] #rad/s
 
     # Gaussian distribution calculation
-    gauss1=nemo.tools.gauss(0.0, E_col - HBAR_EV*freq_row , gamma) #1/eV
-    gauss2=nemo.tools.gauss(0.0, E_col + HBAR_EV*freq_row , gamma) #1/eV
+    gauss1=nemo.tools.gauss(0.0, e_col - HBAR_EV*freq_row , gamma) #1/eV
+    gauss2=nemo.tools.gauss(0.0, e_col + HBAR_EV*freq_row , gamma) #1/eV
     term1 = B * V * gauss1 / E_CHARGE # S.I.
     term2 = B * (V + 1.0) * gauss2 / E_CHARGE # S.I.
     rate  = np.sum(term1 + term2)
@@ -1263,8 +1289,8 @@ def IC_rate_TESTS(initial, final, data=None, data_dc=None, data_V=None, lambda_e
     rate /= N_geom  #s^-1
 
     # # Gaussian double sigma calculation
-    # gauss1=nemo.tools.gauss(0.0, E_col - HBAR_EV*freq_row + lambda_e, 2.0*np.sqrt(2*lambda_e*kbt + kbt**2)) #1/eV
-    # gauss2=nemo.tools.gauss(0.0, E_col + HBAR_EV*freq_row + lambda_e, 2.0*np.sqrt(2*lambda_e*kbt + kbt**2)) #1/eV
+    # gauss1=nemo.tools.gauss(0.0, e_col - HBAR_EV*freq_row + lambda_e, 2.0*np.sqrt(2*lambda_e*kbt + kbt**2)) #1/eV
+    # gauss2=nemo.tools.gauss(0.0, e_col + HBAR_EV*freq_row + lambda_e, 2.0*np.sqrt(2*lambda_e*kbt + kbt**2)) #1/eV
     # term1 = B * V * gauss1 / E_CHARGE # S.I.
     # term2 = B * (V + 1.0) * gauss2 / E_CHARGE # S.I.
     # rate2  = np.sum(term1 + term2)
@@ -1272,8 +1298,8 @@ def IC_rate_TESTS(initial, final, data=None, data_dc=None, data_V=None, lambda_e
     # rate2 /= N_geom  #s^-1
 
     # Lorentzian distribution calculation
-    lortentz1 = nemo.tools.voigt(-E_col + HBAR_EV*freq_row -lambda_e, 2*lambda_e*kbt,kbt) #1/eV
-    lortentz2 = nemo.tools.voigt(-E_col - HBAR_EV*freq_row -lambda_e, 2*lambda_e*kbt,kbt) #1/eV
+    lortentz1 = nemo.tools.voigt(-e_col + HBAR_EV*freq_row -lambda_e, np.sqrt(2*lambda_e*kbt),kbt) #1/eV
+    lortentz2 = nemo.tools.voigt(-e_col - HBAR_EV*freq_row -lambda_e, np.sqrt(2*lambda_e*kbt),kbt) #1/eV
     term1_lortentz = B * V * lortentz1 / E_CHARGE # S.I
     term2_lortentz = B * (V + 1.0) * lortentz2 / E_CHARGE # S.I.
     rate_lortentz  = np.sum(term1_lortentz + term2_lortentz)
@@ -1282,8 +1308,8 @@ def IC_rate_TESTS(initial, final, data=None, data_dc=None, data_V=None, lambda_e
 
     # # Lorentzian gamma calculation
     # gamma = 500.0/8065.5 # eV, corresponds to 500 cm^-1
-    # lortentz1 = nemo.tools.lorentz(0.0, E_col - HBAR_EV*freq_row + lambda_e, gamma) #1/eV
-    # lortentz2 = nemo.tools.lorentz(0.0, E_col + HBAR_EV*freq_row + lambda_e, gamma) #1/eV
+    # lortentz1 = nemo.tools.lorentz(0.0, e_col - HBAR_EV*freq_row + lambda_e, gamma) #1/eV
+    # lortentz2 = nemo.tools.lorentz(0.0, e_col + HBAR_EV*freq_row + lambda_e, gamma) #1/eV
     # term1_lortentz = B * V * lortentz1 / E_CHARGE # S.I
     # term2_lortentz = B * (V + 1.0) * lortentz2 / E_CHARGE # S.I.
     # rate_lortentz2  = np.sum(term1_lortentz + term2_lortentz)
@@ -1292,8 +1318,8 @@ def IC_rate_TESTS(initial, final, data=None, data_dc=None, data_V=None, lambda_e
 
     # Voigt gamma calculation
     gamma=HBAR_EV/2.0*1.39e08 # eV, using the emission rate of PM567
-    voigt1 = nemo.tools.voigt(-E_col + HBAR_EV*freq_row -lambda_e, 2*lambda_e*kbt,gamma) #1/eV
-    voigt2 = nemo.tools.voigt(-E_col - HBAR_EV*freq_row -lambda_e, 2*lambda_e*kbt,gamma) #1/eV
+    voigt1 = nemo.tools.voigt(-e_col + HBAR_EV*freq_row -lambda_e, np.sqrt(2*lambda_e*kbt),gamma) #1/eV
+    voigt2 = nemo.tools.voigt(-e_col - HBAR_EV*freq_row -lambda_e, np.sqrt(2*lambda_e*kbt),gamma) #1/eV
     term1_voigt = B * V * voigt1 / E_CHARGE # S.I
     term2_voigt = B * (V + 1.0) * voigt2 / E_CHARGE # S.I.
     rate_voigt  = np.sum(term1_voigt + term2_voigt)

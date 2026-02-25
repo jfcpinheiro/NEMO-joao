@@ -150,17 +150,19 @@ def interface():
             ("What is the final state (S0, S1, T1, S2 ...)? "
              "Accepts comma separated values Ex: T1,T2\n")
         )
-        res1, res_2, res_3, res_4 = nemo.analysis.IC_rate(initial, final)
+        res1, res_2, res_3, res_4, res_5 = nemo.analysis.IC_rate(initial, final)
         print(f"Gauss+KbT {initial} to {final} is {res1: .3e} s^-1")
         print(f"Gauss+rate_emi {initial} to {final} is {res_2: .3e} s^-1")
         print(f"Lorentz+KbT {initial} to {final} is {res_3: .3e} s^-1")
         print(f"Lorentz+rate_emi {initial} to {final} is {res_4: .3e} s^-1")
+        print(f"Geometry dependent rate from {initial} to {final} is {res_5: .3e} s^-1")
         # save to file
         with open("IC_rate.txt", "w") as f:
             f.write(f"Internal conversion rate from {initial} to {final}: {res1:.3e} s^-1\n")
             f.write(f"Internal conversion rate from {initial} to {final}: {res_2:.3e} s^-1\n")
             f.write(f"Internal conversion rate from {initial} to {final}: {res_3:.3e} s^-1\n")
             f.write(f"Internal conversion rate from {initial} to {final}: {res_4:.3e} s^-1\n")
+            f.write(f"Geometry dependent rate from {initial} to {final}: {res_5:.3e} s^-1\n")
 
 
     elif operation == "9":
