@@ -767,7 +767,7 @@ def rates(initial, dielec, data=None, ensemble_average=False, detailed=False):
             if "soc_" + initial.lower() + "_" in i
         ]
         ##FOR WHEN IC IS AVAILABLE
-        h_ic = 1e-9 + fetch(data, ["^IC_"])
+        h_ic = fetch(data, ["^IC_"])
         initial_state_ic = singlets - (alphast2 / alphaopt1) * ss_s
         final_state_ic = singlets - (alphaopt2 / alphaopt1) * ss_s
         initial_state_ic, h_ic = sorting_parameters(initial_state_ic, h_ic)
