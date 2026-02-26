@@ -907,8 +907,6 @@ def IC_rate(initial, final, data=None, lambda_e=0.0):
     
     kbt = nemo.tools.detect_sigma() # in eV
     gamma = np.sqrt(2*lambda_e*kbt + kbt**2) # eV, corresponds to 500 cm^-1
-    rate_emi=6.46e05 #azulene
-    #rate_emi=1.39e08 #PM567
     
     initial = initial.lower()
     final = final.lower()
@@ -933,6 +931,7 @@ def IC_rate(initial, final, data=None, lambda_e=0.0):
 
     V = nemo.tools.V_to_vec(data_V)
     
+    # ---- Obtains the parameters from the ensemble
     e_col = fetch(data, [f"^e_{initial[0]}"]) #eV
     e_col *= -1.0 # downhill transition
     # ----- Get oscillator strength for the ith transition
@@ -940,6 +939,9 @@ def IC_rate(initial, final, data=None, lambda_e=0.0):
     constante = E_CHARGE**2 / (2.0 * np.pi * HBAR_EV * MASS_E * (LIGHT_SPEED**3.0) * EPSILON_0)
     espectro = constante * ((e_col) ** 2 ) * osc_col
     gammas_lorentz = espectro / 2.0
+    rate_emi=np.mean(espectro, axis=0)[0]/HBAR_EV #PM567
+    print(rate_emi)
+    #------------------
 
     #E_col = energies[:,np.newaxis]  #eV
     freq_row = freq_V[np.newaxis,:] #rad/s

@@ -872,6 +872,11 @@ def get_V(mag_file, V_option='quantum'):
     #--------------------------------------------#
     #Semi-Classical expression
     if V_option == "SemiClass":
+        print("")
+        print("Atention!")
+        print("")
+        print("Performing the SemiClass calculation of the V paramenter.")
+        print("")
         for geom in range(len(amplitudes)):
             for m in range(len(amplitudes[0])):
                 geometry.append(geom+1)
@@ -890,6 +895,11 @@ def get_V(mag_file, V_option='quantum'):
     #--------------------------------------------#
     #Positive semi-classical expression
     if V_option == "POSITIVESemiClass":
+        print("")
+        print("Atention!")
+        print("")
+        print("Performing the POSITIVESemiClass calculation of the V paramenter.")
+        print("")
         for geom in range(len(amplitudes)):
             for m in range(len(amplitudes[0])):
                 geometry.append(geom+1)
@@ -913,8 +923,11 @@ def get_V(mag_file, V_option='quantum'):
     
     #--------------------------------------------#
     # If no valid option was chosen, the calculation performed is the Quantum statistical
-    if V_option != "quantum":
-        print("Performing the quantum statiscal calculation of the V paramenter.")
+    print("")
+    print("Atention!")
+    print("")
+    print("Performing the quantum statiscal calculation of the V paramenter.")
+    print("")
       
     #Quantum statistical expression  
     for geom in range(len(amplitudes)):
