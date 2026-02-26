@@ -212,7 +212,7 @@ def add_header(rem, num_ex, soc, static, refrac):
         header =(f"$rem\n"
             f"cis_n_roots             {num_ex}\n"
             f"cis_singlets            true\n"
-            f"cis_triplets            true\n"
+            f"cis_triplets            false\n"
             f"calc_soc                {soc}\n"
             f"STS_MOM                 true\n"
             f"CIS_RELAXED_DENSITY     TRUE\n"
