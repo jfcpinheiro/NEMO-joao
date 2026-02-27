@@ -1244,13 +1244,16 @@ class Ensemble(object):
 
 
 ### IC_TESTING
-def IC_rate_TESTS(initial, final, data=None, data_dc=None, data_V=None, lambda_e=0.0):
+def IC_rate_TESTS(initial, final, data=None, data_dc=None, data_V=None, lambda_e=0.0, sigma=0.026):
+    """
+        sigma is the parameter of the correlation function.
+    """
     if ((data is None) or (data_dc is None) or (data_V is None)):
         data = gather_data(initial, save=True)
         data_dc, data_V, H = gather_data_derivative_couplings(initial, data, save=False)
     
     kbt = nemo.tools.detect_sigma() # in eV
-    gamma = np.sqrt(2*lambda_e*kbt + kbt**2) # eV, corresponds to 500 cm^-1
+    gamma = np.sqrt(2*lambda_e*kbt + sigma**2) # eV, corresponds to 500 cm^-1
     
     initial = initial.lower()
     final = final.lower()
@@ -1312,7 +1315,7 @@ def IC_rate_TESTS(initial, final, data=None, data_dc=None, data_V=None, lambda_e
     rate_gauss_emi = rate
 
     # Lorentzian distribution gamma=kbT 
-    gamma=kbt # eV
+    gamma=sigma # eV
     voigt1 = nemo.tools.voigt(-e_col + HBAR_EV*freq_row - lambda_e, np.sqrt(2*lambda_e*kbt),gamma) #1/eV
     voigt2 = nemo.tools.voigt(-e_col - HBAR_EV*freq_row - lambda_e, np.sqrt(2*lambda_e*kbt),gamma) #1/eV
     term1_voigt = B * V * voigt1 / E_CHARGE # S.I

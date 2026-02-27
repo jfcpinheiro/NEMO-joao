@@ -873,7 +873,7 @@ def get_V(mag_file, V_option='quantum'):
     #Semi-Classical expression
     if V_option == "SemiClass":
         print("")
-        print("Atention!")
+        print("Attention!")
         print("")
         print("Performing the SemiClass calculation of the V paramenter.")
         print("")
@@ -896,7 +896,7 @@ def get_V(mag_file, V_option='quantum'):
     #Positive semi-classical expression
     if V_option == "POSITIVESemiClass":
         print("")
-        print("Atention!")
+        print("Attention!")
         print("")
         print("Performing the POSITIVESemiClass calculation of the V paramenter.")
         print("")
@@ -924,9 +924,9 @@ def get_V(mag_file, V_option='quantum'):
     #--------------------------------------------#
     # If no valid option was chosen, the calculation performed is the Quantum statistical
     print("")
-    print("Atention!")
+    print("Attention!")
     print("")
-    print("Performing the quantum statiscal calculation of the V paramenter.")
+    print("Performing the quantum statistical calculation of the V paramenter.")
     print("")
       
     #Quantum statistical expression  
