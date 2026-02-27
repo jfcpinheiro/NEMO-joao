@@ -721,7 +721,7 @@ def rates(initial, dielec, data=None, ensemble_average=False, detailed=False):
     #    x_axis, delta_emi[:, np.newaxis], l_total[:, np.newaxis]
     #)
     y_axis = espectro[:, np.newaxis] * nemo.tools.voigt(
-        x_axis + delta_emi[:, np.newaxis], lambda_be[:, np.newaxis], gammas_lorentz[:, np.newaxis]
+        x_axis - delta_emi[:, np.newaxis], np.sqrt(2*lambda_be[:, np.newaxis]*kbt), gammas_lorentz[:, np.newaxis]
     )
     number_geoms = y_axis.shape[0]
     mean_y, error = rate_and_uncertainty(y_axis)
@@ -768,6 +768,9 @@ def rates(initial, dielec, data=None, ensemble_average=False, detailed=False):
         ]
         ##FOR WHEN IC IS AVAILABLE
         h_ic = fetch(data, ["^IC_"])
+        # check if h_ic is []
+        if h_ic.size == 0:
+            h_ic = np.zeros(singlets.shape)
         initial_state_ic = singlets - (alphast2 / alphaopt1) * ss_s
         final_state_ic = singlets - (alphaopt2 / alphaopt1) * ss_s
         initial_state_ic, h_ic = sorting_parameters(initial_state_ic, h_ic)
