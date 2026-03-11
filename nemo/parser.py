@@ -486,6 +486,10 @@ def parse_block(block, collect_corrections=False):
     fetch_singlet = False #Flag for electronic dipole moment section of singlet states
     fetch_triplet = False #Flag for electronic dipole moment section of triplet states
     strike = 0
+
+    vecsS, vecsT, strength_relaxed_S, strength_unrelaxed_S, strength_relaxed_T, strength_unrelaxed_T = [], [], [], [], [], [] #Debugging arrays
+    corr1 = False #Flag for debugging the fetching of electronic dipole moments and oscillator strengths
+
     for line in block.splitlines():
         # Start a new excited state section.
         if "TDDFT/TDA Excitation Energies" in line or "TDDFT Excitation Energies" in line:
@@ -573,6 +577,10 @@ def parse_block(block, collect_corrections=False):
             try:
                 vecT = np.array([float(line.split()[1]), float(line.split()[2]), float(line.split()[3])])
                 _, theta, phi = nemo.tools.cartesian_to_spherical(vecT-vec0)
+                
+                #debug code
+                vecsT.append(np.linalg.norm(vecT-vec0))
+
                 data['theta_t'].append(theta)
                 data['phi_t'].append(phi)
             except (ValueError, IndexError):
@@ -585,6 +593,10 @@ def parse_block(block, collect_corrections=False):
             try:
                 vecS = np.array([float(line.split()[1]),float(line.split()[2]), float(line.split()[3])])
                 _, theta, phi = nemo.tools.cartesian_to_spherical(vecS-vec0)
+
+                #debug code
+                vecsS.append(np.linalg.norm(vecS-vec0))
+
                 data['theta_s'].append(theta)
                 data['phi_s'].append(phi)
             except (ValueError, IndexError):
@@ -593,6 +605,33 @@ def parse_block(block, collect_corrections=False):
                     fetch_singlet = False
                     strike = 0
             continue
+
+        #Debugging code to check if we are correctly fetching the electronic dipole moments
+        if "Excited-state" in line:
+            corr1 = True
+            singlet=False
+            triplet=False
+        if corr1:
+            if 'triplet' in line.lower():
+                triplet=True
+            if 'singlet' in line.lower():
+                singlet=True
+            if "Strength" in line:
+                if triplet:
+                    val = float(line.split()[-1])
+                    strength_unrelaxed_T.append(val)
+                    strength_relaxed_T.append(val)
+                    triplet=False
+                if singlet:
+                    val = float(line.split()[-1])
+                    strength_unrelaxed_S.append(val)
+                    strength_relaxed_S.append(val)
+                    singlet=False
+
+
+            if "------------------------ END OF SUMMARY -----------------------" in line:
+                corr1 = False
+
 
 
         # Total energy in final basis set
@@ -620,6 +659,21 @@ def parse_block(block, collect_corrections=False):
         data['ss_s'] = np.array(data['correction'])[singlet_idx] + np.array(data['correction2'])[singlet_idx]
         data['ss_t'] = np.array(data['correction'])[triplet_idx] + np.array(data['correction2'])[triplet_idx]
     data['len'] = len(data['singlets'])
+
+
+    #debug electronic moments
+    if not collect_corrections:
+        print('Entrei1')
+        for i in range(len(vecsS)):
+                print(f"Singlet {i+1}: {vecsS[i]}")
+                print(f"Triplet {i+1}: {vecsT[i]}")
+                input("Press Enter to continue...")
+    if collect_corrections:
+        print('Entrei2')
+        for i in range(len(strength_relaxed_S)):
+                print(f"Singlet {i+1}: Strength (relaxed): {strength_relaxed_S[i]}, Strength (unrelaxed): {strength_unrelaxed_S[i]}")
+                print(f"Triplet {i+1}: Strength (relaxed): {strength_relaxed_T[i]}, Strength (unrelaxed): {strength_unrelaxed_T[i]}")
+                input("Press Enter to continue...")
 
     return data
 
