@@ -4,7 +4,7 @@ import subprocess
 import sys
 import time
 import requests
-import pkg_resources
+from importlib.metadata import version
 from subprocess import Popen
 import numpy as np
 import pandas as pd
@@ -23,134 +23,91 @@ EPSILON_0 = nemo.parser.EPSILON_0
 ###############################################################
 
 def distance_matrix(geom):
-    matrix = np.zeros((1, np.shape(geom)[0]))
-    for ind in range(np.shape(geom)[0]):
+    n_atoms = np.shape(geom)[0]
+    matrix = np.zeros((n_atoms, n_atoms))
+
+    for ind in range(n_atoms):
         distances = geom - geom[ind, :]
-        distances = np.sqrt(np.sum(np.square(distances), axis=1))
-        matrix = np.vstack((matrix, distances[np.newaxis, :]))
-    matrix = matrix[1:, :]
+        matrix[ind, :] = np.sqrt(
+            np.sum(np.square(distances), axis=1)
+        )
+
     return matrix
 
 
 def adjacency(geom, atoms):
     covalent_radii = {
-        '1': 0.31,
-        'H': 0.31,
-        '2': 0.28,
-        'He': 0.28,
-        '3': 1.28,
-        'Li': 1.28,
-        '4': 0.96,
-        'Be': 0.96,
-        '5': 0.84,
-        'B': 0.84,
-        '6': 0.76,
-        'C': 0.76,
-        '7': 0.71,
-        'N': 0.71,
-        '8': 0.66,
-        'O': 0.66,
-        '9': 0.57,
-        'F': 0.57,
-        '10': 0.58,
-        'Ne': 0.58,
-        '11': 1.66,
-        'Na': 1.66,
-        '12': 1.41,
-        'Mg': 1.41,
-        '13': 1.21,
-        'Al': 1.21,
-        '14': 1.11,
-        'Si': 1.11,
-        '15': 1.07,
-        'P': 1.07,
-        '16': 1.05,
-        'S': 1.05,
-        '17': 1.02,
-        'Cl': 1.02,
-        '18': 1.06,
-        'Ar': 1.06,
-        '19': 2.03,
-        'K': 2.03,
-        '20': 1.76,
-        'Ca': 1.76,
-        '21': 1.7,
-        'Sc': 1.7,
-        '22': 1.6,
-        'Ti': 1.6,
-        '23': 1.53,
-        'V': 1.53,
-        '24': 1.39,
-        'Cr': 1.39,
-        '25': 1.61,
-        'Mn': 1.61,
-        '26': 1.52,
-        'Fe': 1.52,
-        '27': 1.50,
-        'Co': 1.50,
-        '28': 1.24,
-        'Ni': 1.24,
-        '29': 1.32,
-        'Cu': 1.32,
-        '30': 1.22,
-        'Zn': 1.22,
-        '31': 1.22,
-        'Ga': 1.22,
-        '32': 1.2,
-        'Ge': 1.2,
-        '33': 1.19,
-        'As': 1.19,
-        '34': 1.20,
-        'Se': 1.20,
-        '35': 1.20,
-        'Br': 1.20,
-        '36': 1.16,
-        'Kr': 1.16,
-        '37': 2.2,
-        'Rb': 2.2,
-        '38': 1.95,
-        'Sr': 1.95,
-        '39': 1.9,
-        'Y': 1.9,
-        '40': 1.75,
-        'Zr': 1.75,
-        '41': 1.64,
-        'Nb': 1.64,
-        '42': 1.54,
-        'Mo': 1.54,
-        '43': 1.47,
-        'Tc': 1.47,
-        '44': 1.46,
-        'Ru': 1.46,
-        '45': 1.42,
-        'Rh': 1.42,
-        '46': 1.39,
-        'Pd': 1.39,
-        '47': 1.45,
-        'Ag': 1.45,
-        '48': 1.44,
-        'Cd': 1.44,
-        '49': 1.42,
-        'In': 1.42,
-        '50': 1.39,
-        'Sn': 1.39,
-        '51': 1.39,
-        'Sb': 1.39,
-        '52': 1.38,
-        'Te': 1.38,
-        '53': 1.39,
-        'I': 1.39,
-        '54': 1.4,
-        'Xe': 1.4,
+        '1': 0.31,  'H': 0.31,
+        '2': 0.28,  'He': 0.28,
+        '3': 1.28,  'Li': 1.28,
+        '4': 0.96,  'Be': 0.96,
+        '5': 0.84,  'B': 0.84,
+        '6': 0.76,  'C': 0.76,
+        '7': 0.71,  'N': 0.71,
+        '8': 0.66,  'O': 0.66,
+        '9': 0.57,  'F': 0.57,
+        '10': 0.58, 'Ne': 0.58,
+        '11': 1.66, 'Na': 1.66,
+        '12': 1.41, 'Mg': 1.41,
+        '13': 1.21, 'Al': 1.21,
+        '14': 1.11, 'Si': 1.11,
+        '15': 1.07, 'P': 1.07,
+        '16': 1.05, 'S': 1.05,
+        '17': 1.02, 'Cl': 1.02,
+        '18': 1.06, 'Ar': 1.06,
+        '19': 2.03, 'K': 2.03,
+        '20': 1.76, 'Ca': 1.76,
+        '21': 1.70, 'Sc': 1.70,
+        '22': 1.60, 'Ti': 1.60,
+        '23': 1.53, 'V': 1.53,
+        '24': 1.39, 'Cr': 1.39,
+        '25': 1.61, 'Mn': 1.61,
+        '26': 1.52, 'Fe': 1.52,
+        '27': 1.50, 'Co': 1.50,
+        '28': 1.24, 'Ni': 1.24,
+        '29': 1.32, 'Cu': 1.32,
+        '30': 1.22, 'Zn': 1.22,
+        '31': 1.22, 'Ga': 1.22,
+        '32': 1.20, 'Ge': 1.20,
+        '33': 1.19, 'As': 1.19,
+        '34': 1.20, 'Se': 1.20,
+        '35': 1.20, 'Br': 1.20,
+        '36': 1.16, 'Kr': 1.16,
+        '37': 2.20, 'Rb': 2.20,
+        '38': 1.95, 'Sr': 1.95,
+        '39': 1.90, 'Y': 1.90,
+        '40': 1.75, 'Zr': 1.75,
+        '41': 1.64, 'Nb': 1.64,
+        '42': 1.54, 'Mo': 1.54,
+        '43': 1.47, 'Tc': 1.47,
+        '44': 1.46, 'Ru': 1.46,
+        '45': 1.42, 'Rh': 1.42,
+        '46': 1.39, 'Pd': 1.39,
+        '47': 1.45, 'Ag': 1.45,
+        '48': 1.44, 'Cd': 1.44,
+        '49': 1.42, 'In': 1.42,
+        '50': 1.39, 'Sn': 1.39,
+        '51': 1.39, 'Sb': 1.39,
+        '52': 1.38, 'Te': 1.38,
+        '53': 1.39, 'I': 1.39,
+        '54': 1.40, 'Xe': 1.40,
     }
+
     dist_matrix = distance_matrix(geom)
     adj_matrix = np.zeros(np.shape(dist_matrix))
-    # connectivity matrix
+
+    # Connectivity matrix
     for i in range(np.shape(dist_matrix)[0]):
-        for j in range(i, np.shape(dist_matrix)[1]):
-            r_e = (covalent_radii[atoms[i]] + covalent_radii[atoms[j]]) + 0.4
-            if 0.8 < dist_matrix[i, j] < r_e:
+        for j in range(i + 1, np.shape(dist_matrix)[1]):
+            r_e = (
+                covalent_radii[atoms[i]]
+                + covalent_radii[atoms[j]]
+                + 0.4
+            )
+
+            if dist_matrix[i, j] < r_e:
                 adj_matrix[i, j] = adj_matrix[j, i] = 1
+
     return adj_matrix
 
 
@@ -181,7 +138,7 @@ def start_counter():
 
 
 def sample_single_geometry(args):
-    geom, atomos, old, scales, normal_coord, warning = args
+    geom, atomos, old, scales, normal_coord = args
     rejected_geoms = 0
     ok = False
     
@@ -191,24 +148,18 @@ def sample_single_geometry(args):
         qs = np.array(qs)
         start_geom += np.sum(qs.reshape(1, 1, -1) * normal_coord, axis=2)
         new = adjacency(start_geom, atomos)
-        if 0.5 * np.sum(np.abs(old - new)) < 1 or not warning:
+        if 0.5 * np.sum(np.abs(old - new)) < 1:
             ok = True
             return (start_geom, qs.T, rejected_geoms)
         else:
             rejected_geoms += 1
 
-def sample_geometries(freqlog, num_geoms, temp, limit=np.inf, warning=True, show_progress=False):
+def sample_geometries(freqlog, num_geoms, temp, show_progress=False):
     geom, atomos = nemo.parser.pega_geom(freqlog)
     old = adjacency(geom, atomos)
     freqs, masses = nemo.parser.pega_freq(freqlog)
     normal_coord = nemo.parser.pega_modos(geom, freqlog)
 
-    if not warning:
-        freqs[freqs < 0] *= -1
-        mask = freqs < limit * (LIGHT_SPEED * 100 * 2 * np.pi)
-        freqs = freqs[mask]
-        masses = masses[mask]
-        normal_coord = normal_coord[:, :, mask]
     if temp == 0:
         temp_factor = 1.0
     else:    
@@ -217,7 +168,7 @@ def sample_geometries(freqlog, num_geoms, temp, limit=np.inf, warning=True, show
     scales = 1e10 * np.sqrt(
         HBAR_J / (2 * masses * freqs * temp_factor))
 
-    args = [(geom, atomos, old, scales, normal_coord, warning) for _ in range(num_geoms)]
+    args = [(geom, atomos, old, scales, normal_coord) for _ in range(num_geoms)]
 
     # Use joblib to parallelize the geometry generation
     results = Parallel(n_jobs=-1, verbose=show_progress)(
@@ -255,7 +206,7 @@ def make_ensemble(freqlog, num_geoms, temperature, header, bottom):
         pass
     counter = nemo.tools.start_counter()
     print("\nGenerating geometries...\n")
-    numbers, atomos, A = sample_geometries(freqlog, num_geoms, temperature,warning=False, show_progress=True)
+    numbers, atomos, A = sample_geometries(freqlog, num_geoms, temperature, show_progress=True)
     F, M = nemo.parser.pega_freq(freqlog)
     # convert numbers to dataframe
     numbers = pd.DataFrame(
@@ -294,6 +245,20 @@ def check_dielectric(eps,nr):
     if eps < 1 or nr**2 > eps:
         nemo.parser.fatal_error("Dielectric constant must be higher than 1 and the refractive index squared must be lower than the static dielectric constant! Goodbye!")
 
+def load_template(method):
+    """Loads the Q-Chem template file."""
+    template_dir = os.path.join(os.path.dirname(__file__), "templates")
+    template_file = os.path.join(template_dir, f"{method}.in")
+
+    if not os.path.exists(template_file):
+        raise FileNotFoundError(f"Template file not found: {template_file}")
+
+    with open(template_file, "r", encoding="utf-8") as f:
+        return f.read()
+
+def extract_basic_rem(rem):
+    """Extracts relevant information from the rem section and removes $end."""
+    return rem.replace("$end", "").strip()
 
 def add_header(rem, num_ex, soc, static, refrac, cm):
     """
@@ -378,6 +343,7 @@ def single_molecule_ensemble(atomos, geom, header, bottom):
 def setup_ensemble():
     freqlog = fetch_file("frequency", [".out", ".log"])
     print(f"\n\nFrequency log file: {freqlog}")
+    nemo.parser.double_check(freqlog)
     template = fetch_file("QChem template", [".in"])
     charge_multiplicity = nemo.parser.get_cm(freqlog)
     rem, _, extra = nemo.parser.busca_input(template)
@@ -418,7 +384,7 @@ def setup_ensemble():
     header = header[0]
     
     num_geoms = int(input("How many geometries to be sampled?\n"))
-    if num_geoms == 1:
+    if num_geoms == 0:
         single_molecule_ensemble(atomos, geom, header, bottom)
     else:
         temperature = float(input("Temperature in Kelvin?\n"))
@@ -635,7 +601,10 @@ class Watcher:
         self.folder = folder
         self.key = key
         self.files = [i[:-4] for i in os.listdir(folder) if i.endswith('.com') and key in i]
-        self.files = sorted(self.files, key=lambda pair: float(pair.split("-")[1]))
+        try:
+            self.files = sorted(self.files, key=lambda pair: float(pair.split("-")[1]))
+        except (ValueError, IndexError):
+            pass
         self.number_inputs = len(self.files)
         self.done = []
         self.license_error = []
@@ -647,11 +616,11 @@ class Watcher:
         list_to_check = self.files.copy()
         for input_file in list_to_check:
             input_file_path = f"{self.folder}/{input_file}"
-        
+
             try:
-                # Check if "@@@" is present in the input file
+                # Count "@@@" present in the input file
                 with open(f"{input_file_path}.com", "r", encoding="utf-8") as inp_file:
-                    has_triple_at = any("@@@" in line for line in inp_file)
+                    num_triple_at = sum(line.count("@@@") for line in inp_file)
 
                 # Now check the corresponding log file
                 log_file_path = f"{input_file_path}.log"
@@ -661,14 +630,14 @@ class Watcher:
                     for line in log_file:
                         if "Have a nice day" in line:
                             have_a_nice_day_count += 1
-                            if not has_triple_at and have_a_nice_day_count == 1:
+                            if have_a_nice_day_count == num_triple_at +1:#not has_triple_at and have_a_nice_day_count == 1:
                                 self.done.append(input_file)
                                 self.files.remove(input_file)
                                 break
-                            elif has_triple_at and have_a_nice_day_count == 2:
-                                self.done.append(input_file)
-                                self.files.remove(input_file)
-                                break
+                            #elif has_triple_at and have_a_nice_day_count == 2:
+                            #    self.done.append(input_file)
+                            #    self.files.remove(input_file)
+                            #    break
                         elif "fatal error" in line or "Q-Chem error" in line:
                             self.error.append(input_file)
                             self.files.remove(input_file)
@@ -695,16 +664,16 @@ class Watcher:
             print('These are: ', self.license_error)
 
     def limit(self):
-        if self.key == "Geometr":
-            try:
-                return np.loadtxt("../limit.lx",encoding='utf-8')
-            except (OSError,FileNotFoundError):
-                sys.exit()
-        else:
-            try:
-                return np.loadtxt("limit.lx",encoding='utf-8')
-            except (OSError,FileNotFoundError):
-                sys.exit()
+        limit_file = "../limit.lx" if self.key == "Geometr" else "limit.lx"
+        try:
+            return np.loadtxt(limit_file, encoding='utf-8')
+        except (OSError, FileNotFoundError):
+            print("limit.lx file removed. Stopping Python process.")
+            raise SystemExit(0)
+
+    def _ensure_limit_file(self):
+        # Force a limit.lx check even in loops that do not call keep_going.
+        self.limit()
 
     def keep_going(self,num):
         if len(self.running) / num < self.limit():
@@ -724,6 +693,7 @@ class Watcher:
         self.clean_failed()
         inputs = self.files.copy()
         while len(inputs) > 0:
+            self._ensure_limit_file()
             next_inputs = inputs[:int(num)]
             num_proc = int(total_threads / len(next_inputs))
             command = ''
@@ -743,10 +713,11 @@ class Watcher:
                 self.check()
                 concluded = self.done + self.error + self.license_error
                 self.running = [elem for elem in self.running if elem not in concluded]
-                keep = self.keep_going(num)    
+                keep = self.keep_going(num)
 
     def hold_watch(self):
         while len(self.files) > 0:
+            self._ensure_limit_file()
             time.sleep(20)
             self.check()
 
@@ -760,8 +731,8 @@ def andamento():
 def check_for_updates(package_name):
     try:
         # Get the currently installed version
-        installed_version = pkg_resources.get_distribution(package_name).version
-        
+        installed_version = version(package_name)
+
         # Fetch the latest version from PyPI
         response = requests.get(f'https://pypi.org/pypi/{package_name}/json')
         response.raise_for_status()
@@ -774,27 +745,13 @@ def check_for_updates(package_name):
 
     except Exception as e:
         print(f"An error occurred while checking for updates: {e}")
-
+        
 ##RUNS W TUNING################################################
-def empirical_tuning():
-    geomlog = fetch_file("input or log", [".com", ".log"])
-    rem, _, extra = nemo.parser.busca_input(geomlog)
-    print(f"QChem template file: {geomlog}")
-    rem += extra + "\n"
-    #iterate over lines of rem
-    for line in rem.split("\n"):
-        if "method" in line.lower() or 'exchange' in line.lower():
-            functional = line.split()[-1]
-        if "basis" in line.lower():
-            basis = line.split()[-1]
-        if  'mem_total' in line.lower():
-            mem = line.split()[-1]   
+def tuning():
+    geomlog = fetch_file("input or log", [".in"])
     omega1 = "0.1"
     passo = "0.025"
     relax = 'yes'
-    print(f"Total memory: {mem}")
-    print(f"Functional: {functional}")
-    print(f"Basis: {basis}")
     print(f"Initial Omega: {omega1} bohr^-1")
     print(f"Step: {passo} bohr^-1")
     print(f'Optimize at each step? {relax}')
@@ -814,9 +771,7 @@ def empirical_tuning():
         )
     script = fetch_file("batch script", ["batch.sh"])
     nproc = input("Number of threads for each calculation\n")
-    e_exp = input("Experimental vacuum energy and uncertainty in eV? (space separated)\n")
-    chi_exp = input("Experimental susceptibility and uncertainty in eV? (space separated)?\n")
-    
+    parallel = input("Minimize submission of jobs: y/n\n")
     with open("limit.lx", "w",encoding="utf-8") as f:
         f.write("10")
     subprocess.Popen(
@@ -824,16 +779,12 @@ def empirical_tuning():
             "nohup",
             "nemo_tuning",
             geomlog,
-            functional,
-            basis,
             nproc,
             omega1,
             passo,
             relax,
             script,
-            e_exp,
-            chi_exp,
-            mem,
+            parallel,
             "&",
         ]
     )

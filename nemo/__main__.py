@@ -133,10 +133,17 @@ def interface():
         for state in states:
             gather_data(state, save=True)
     elif operation == "8":
-        lx.tools.omega_tuning()
+        input_file = nemo.tools.fetch_file("input", ['.com', '.in'])
+        with open(input_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+            if "$rem" in content:
+                print("Attempting Q-Chem tuning")
+                nemo.tools.tuning()
+            else:    
+                print("Attempting Gaussian tuning")
+                lx.tools.omega_tuning()
     else:
-        nemo.tools.empirical_tuning()
-        #nemo.parser.fatal_error("It must be one of the options... Goodbye!")
+        nemo.parser.fatal_error("It must be one of the options... Goodbye!")
 
 
 def main():
@@ -151,15 +158,14 @@ def main():
     parser.add_argument('-c', '--check', type=str, help="Run susceptibility check on the specified file.")
 
     parser.add_argument('-g', '--geom', type=str, help="Gets geometry from a log file.")    
-
     # Parse arguments
     args = parser.parse_args()
     
     # If `-c` is provided, call the susceptibility_check function
     if args.check:
         nemo.tools.susceptibility_check(args.check)
-        sys.exit(0)        
-    
+        sys.exit(0)
+
     elif args.geom:
         try:
             geometry, atomos = nemo.parser.pega_geom(args.geom)
@@ -175,7 +181,6 @@ def main():
             interface()
     else:
         interface()
-
 
 if __name__ == "__main__":
     sys.exit(main())
