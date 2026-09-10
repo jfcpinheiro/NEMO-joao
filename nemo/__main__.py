@@ -47,8 +47,9 @@ def interface():
     print("\t7 - Gather ensemble data only")
     print("EXTRA FEATURES:")
     print(
-        "\t8 - Perform tuning of long range corrected functional (Gaussian 09/16 only)"
+        "\t8 - Perform tuning of long range corrected functional"
     )
+    print("\t9 - Perform empirical tuning of a long range corrected functional")
     print('\n')
     nemo.tools.check_for_updates('nemophoto')
     operation = input()
@@ -142,6 +143,8 @@ def interface():
             else:    
                 print("Attempting Gaussian tuning")
                 lx.tools.omega_tuning()
+    elif operation == "9":
+        nemo.tools.empirical_omega()
     else:
         nemo.parser.fatal_error("It must be one of the options... Goodbye!")
 
@@ -157,13 +160,40 @@ def main():
     # Add the `-c` flag for susceptibility check with a file argument
     parser.add_argument('-c', '--check', type=str, help="Run susceptibility check on the specified file.")
 
-    parser.add_argument('-g', '--geom', type=str, help="Gets geometry from a log file.")    
+    parser.add_argument('-g', '--geom', type=str, help="Gets geometry from a log file.")
+    parser.add_argument(
+        '-e',
+        '--ensemble-file',
+        nargs=2,
+        metavar=("LOGFILE", "STATE"),
+        help="Gather ensemble data from a single Q-Chem log file for a given state.",
+    )
+    parser.add_argument(
+        "fit_values",
+        nargs="*",
+        help="Optional fit file: nemo -c output.log fit.npy",
+    )
     # Parse arguments
     args = parser.parse_args()
     
     # If `-c` is provided, call the susceptibility_check function
     if args.check:
-        nemo.tools.susceptibility_check(args.check)
+        if len(args.fit_values) > 1:
+            parser.error(
+                "When using -c, provide either no fit file or exactly one .npy fit file"
+            )
+        fit = args.fit_values[0] if args.fit_values else None
+        nemo.tools.susceptibility_check(args.check, fit=fit)
+        sys.exit(0)
+
+    elif args.fit_values:
+        parser.error("A fit file can only be supplied together with -c/--check")
+
+    elif args.ensemble_file:
+        log_file, state_arg = args.ensemble_file
+        states = state_arg.split(",")
+        for state in states:
+            gather_data(state.strip(), save=True, filename=log_file)
         sys.exit(0)
 
     elif args.geom:
