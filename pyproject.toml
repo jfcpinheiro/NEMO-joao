@@ -18,7 +18,7 @@ dependencies = [
   "pandas",
   "scipy",
   "tables",
-  "LeoX>=0.10.2"
+  "LeoX>=0.10.3"
 ]
 
 [project.scripts]
